@@ -1,0 +1,29 @@
+framework:
+  workflows:
+    leave_request:
+      type: 'state_machine'
+      supports:
+        - App\Entity\LeaveRequest
+      marking_store:
+        type: 'method'
+        property: 'status'
+      initial_marking: 'DRAFT'
+      places:
+        - DRAFT
+        - SUBMITTED
+        - APPROVED
+        - REJECTED
+        - CANCELLED
+      transitions:
+        submit:
+          from: DRAFT
+          to: SUBMITTED
+        approve:
+          from: SUBMITTED
+          to: APPROVED
+        reject:
+          from: SUBMITTED
+          to: REJECTED
+        cancel:
+          from: [DRAFT, SUBMITTED]
+          to: CANCELLED

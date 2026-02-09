@@ -1,0 +1,17 @@
+framework:
+  secret: '%env(APP_SECRET)%'
+  http_method_override: false
+  handle_all_throwables: true
+
+  serializer:
+    enabled: true
+
+  messenger:
+    transports:
+      async: '%env(MESSENGER_TRANSPORT_DSN)%'
+    routing:
+      'App\Message\PublishNotificationMessage': async
+
+when@dev:
+  framework:
+    profiler: { only_exceptions: false }
