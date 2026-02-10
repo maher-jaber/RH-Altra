@@ -1,53 +1,45 @@
 <?php
-
 namespace App\Entity;
 
-use App\Repository\NotificationRepository;
 use Doctrine\ORM\Mapping as ORM;
-use Symfony\Component\Uid\Uuid;
 
-#[ORM\Entity(repositoryClass: NotificationRepository::class)]
-#[ORM\Table(name: 'notifications')]
+#[ORM\Entity]
+#[ORM\Table(name:'notifications')]
 class Notification
 {
-    #[ORM\Id]
-    #[ORM\Column(type: 'uuid', unique: true)]
-    private Uuid $id;
+    #[ORM\Id, ORM\GeneratedValue, ORM\Column(type:'integer')]
+    private ?int $id=null;
 
-    #[ORM\Column(length: 80)]
-    private string $recipientApiKey;
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable:false, onDelete:'CASCADE')]
+    private ?User $user=null;
 
-    #[ORM\Column(length: 120)]
-    private string $title;
+    #[ORM\Column(type:'string', length:120)]
+    private string $title='';
 
-    #[ORM\Column(type: 'text')]
-    private string $message;
+    #[ORM\Column(type:'text', nullable:true)]
+    private ?string $body=null;
 
-    #[ORM\Column(type: 'datetime_immutable')]
-    private \DateTimeImmutable $createdAt;
+    #[ORM\Column(type:'string', length:60)]
+    private string $type='INFO';
 
-    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
-    private ?\DateTimeImmutable $readAt = null;
+    #[ORM\Column(type:'boolean')]
+    private bool $isRead=false;
 
-    public function __construct()
-    {
-        $this->id = Uuid::v7();
-        $this->createdAt = new \DateTimeImmutable();
-    }
+    #[ORM\Column(type:'datetime')]
+    private \DateTimeInterface $createdAt;
 
-    public function getId(): string { return $this->id->toRfc4122(); }
+    public function __construct(){ $this->createdAt=new \DateTimeImmutable(); }
 
-    public function getRecipientApiKey(): string { return $this->recipientApiKey; }
-    public function setRecipientApiKey(string $k): void { $this->recipientApiKey = $k; }
-
+    public function getId(): ?int { return $this->id; }
+    public function setUser(User $u): self { $this->user=$u; return $this; }
+    public function getUser(): ?User { return $this->user; }
+    public function setTitle(string $t): self { $this->title=$t; return $this; }
     public function getTitle(): string { return $this->title; }
-    public function setTitle(string $t): void { $this->title = $t; }
-
-    public function getMessage(): string { return $this->message; }
-    public function setMessage(string $m): void { $this->message = $m; }
-
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
-
-    public function getReadAt(): ?\DateTimeImmutable { return $this->readAt; }
-    public function markRead(): void { $this->readAt = new \DateTimeImmutable(); }
+    public function setBody(?string $b): self { $this->body=$b; return $this; }
+    public function getBody(): ?string { return $this->body; }
+    public function setType(string $t): self { $this->type=$t; return $this; }
+    public function getType(): string { return $this->type; }
+    public function markRead(): self { $this->isRead=true; return $this; }
+    public function isRead(): bool { return $this->isRead; }
 }

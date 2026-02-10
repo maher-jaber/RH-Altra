@@ -1,11 +1,11 @@
-const KEY = 'altra_hrms_api_key';
+const KEY = 'altra_hrms_token';
 
 export const storage = {
-  getApiKey(): string | null {
+  getToken(): string | null {
     return localStorage.getItem(KEY);
   },
-  setApiKey(key: string): void {
-    localStorage.setItem(KEY, key);
+  setToken(token: string): void {
+    localStorage.setItem(KEY, token);
   },
   clear(): void {
     localStorage.removeItem(KEY);

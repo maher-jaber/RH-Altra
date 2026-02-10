@@ -1,0 +1,7 @@
+vendor
+var
+.env.local
+.git
+.github
+.vscode
+.idea

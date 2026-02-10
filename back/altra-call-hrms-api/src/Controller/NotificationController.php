@@ -1,39 +1,36 @@
 <?php
-
 namespace App\Controller;
 
-use App\Repository\NotificationRepository;
-use App\Service\ApiResponse;
+use App\Entity\Notification;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 
 class NotificationController extends ApiBase
 {
-    public function __construct(
-        private NotificationRepository $repo,
-        private EntityManagerInterface $em
-    ) {}
-
-    #[Route('/api/notifications', methods: ['GET'])]
-    public function list(Request $request): JsonResponse
-    {
-        $u = $this->requireUser($request);
-        $list = $this->repo->findForRecipient($u->apiKey);
-        return $this->jsonOk(array_map([ApiResponse::class, 'notif'], $list));
+    #[Route('/api/notifications', methods:['GET'])]
+    public function list(Request $r, EntityManagerInterface $em): JsonResponse {
+        $u=$this->requireUser($r);
+        $items=$em->getRepository(Notification::class)->findBy(['user'=>$u],['id'=>'DESC']);
+        $out=array_map(fn(Notification $n)=>[
+            'id'=>(string)$n->getId(),
+            'title'=>$n->getTitle(),
+            'body'=>$n->getBody(),
+            'type'=>$n->getType(),
+            'isRead'=>$n->isRead(),
+        ], $items);
+        return $this->jsonOk(['items'=>$out]);
     }
 
-    #[Route('/api/notifications/{id}/read', methods: ['POST'])]
-    public function read(string $id, Request $request): JsonResponse
-    {
-        $u = $this->requireUser($request);
-        $n = $this->repo->find($id);
-        if (!$n || $n->getRecipientApiKey() !== $u->apiKey) {
-            return $this->jsonOk(['error' => 'Not found'], 404);
-        }
+    #[Route('/api/notifications/{id}/read', methods:['POST'])]
+    public function readOne(string $id, Request $r, EntityManagerInterface $em): JsonResponse {
+        $u=$this->requireUser($r);
+        $n=$em->getRepository(Notification::class)->find($id);
+        if(!$n) return $this->json(['error'=>'not_found'],404);
+        if($n->getUser()->getId()!==$u->getId()) return $this->json(['error'=>'forbidden'],403);
         $n->markRead();
-        $this->em->flush();
-        return $this->jsonOk(['ok' => true]);
+        $em->flush();
+        return $this->jsonOk(['ok'=>true]);
     }
 }

@@ -11,19 +11,22 @@ framework:
       places:
         - DRAFT
         - SUBMITTED
-        - APPROVED
+        - MANAGER_APPROVED
+        - HR_APPROVED
         - REJECTED
-        - CANCELLED
       transitions:
         submit:
           from: DRAFT
           to: SUBMITTED
-        approve:
+        manager_approve:
           from: SUBMITTED
-          to: APPROVED
-        reject:
+          to: MANAGER_APPROVED
+        hr_approve:
+          from: MANAGER_APPROVED
+          to: HR_APPROVED
+        reject_from_submitted:
           from: SUBMITTED
           to: REJECTED
-        cancel:
-          from: [DRAFT, SUBMITTED]
-          to: CANCELLED
+        reject_from_manager:
+          from: MANAGER_APPROVED
+          to: REJECTED

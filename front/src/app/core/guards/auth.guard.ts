@@ -4,8 +4,8 @@ import { storage } from '../storage';
 
 export const authGuard: CanActivateFn = () => {
   const router = inject(Router);
-  const key = storage.getApiKey();
-  if (!key) {
+  const token = storage.getToken();
+  if (!token) {
     router.navigateByUrl('/login');
     return false;
   }

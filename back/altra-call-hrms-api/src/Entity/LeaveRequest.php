@@ -4,12 +4,20 @@ namespace App\Entity;
 
 use App\Repository\LeaveRequestRepository;
 use Doctrine\ORM\Mapping as ORM;
+use App\Entity\LeaveType;
+use App\Entity\User;
 use Symfony\Component\Uid\Uuid;
 
 #[ORM\Entity(repositoryClass: LeaveRequestRepository::class)]
 #[ORM\Table(name: 'leave_requests')]
 class LeaveRequest
 {
+    public const STATUS_DRAFT='DRAFT';
+    public const STATUS_SUBMITTED='SUBMITTED';
+    public const STATUS_MANAGER_APPROVED='MANAGER_APPROVED';
+    public const STATUS_HR_APPROVED='HR_APPROVED';
+    public const STATUS_REJECTED='REJECTED';
+
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
     private Uuid $id;
@@ -69,4 +77,28 @@ class LeaveRequest
     public function setCreatedByApiKey(string $k): void { $this->createdByApiKey = $k; }
 
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
+
+
+    public function getDaysCount(): float { return $this->daysCount; }
+    public function setDaysCount(float $d): self { $this->daysCount=$d; return $this; }
+    public function getNote(): ?string { return $this->note; }
+    public function setNote(?string $n): self { $this->note=$n; return $this; }
+    public function getCertificatePath(): ?string { return $this->certificatePath; }
+    public function setCertificatePath(?string $p): self { $this->certificatePath=$p; return $this; }
+
+
+    public function getManagerSignedAt(): ?\DateTimeImmutable { return $this->managerSignedAt; }
+    public function setManagerSignedAt(?\DateTimeImmutable $d): self { $this->managerSignedAt=$d; return $this; }
+    public function getHrSignedAt(): ?\DateTimeImmutable { return $this->hrSignedAt; }
+    public function setHrSignedAt(?\DateTimeImmutable $d): self { $this->hrSignedAt=$d; return $this; }
+
+    public function getManagerSignature(): ?string { return $this->managerSignature; }
+    public function setManagerSignature(?string $s): self { $this->managerSignature=$s; return $this; }
+    public function getHrSignature(): ?string { return $this->hrSignature; }
+    public function setHrSignature(?string $s): self { $this->hrSignature=$s; return $this; }
+
+    public function getManagerSignerName(): ?string { return $this->managerSignerName; }
+    public function setManagerSignerName(?string $n): self { $this->managerSignerName=$n; return $this; }
+    public function getHrSignerName(): ?string { return $this->hrSignerName; }
+    public function setHrSignerName(?string $n): self { $this->hrSignerName=$n; return $this; }
 }

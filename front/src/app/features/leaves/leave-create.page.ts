@@ -1,0 +1,243 @@
+import { Component, OnInit, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterModule } from '@angular/router';
+
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
+import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
+
+type LeaveType = { id: string; code: string; label: string; annualAllowance: number; requiresCertificate: boolean };
+type BalanceRow = { type: LeaveType; year: number; usedDays: number; remainingDays: number | null };
+
+@Component({
+  standalone: true,
+  selector: 'app-leave-create',
+  imports: [
+    CommonModule, FormsModule, RouterModule,
+    MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatButtonModule, MatSnackBarModule
+  ],
+  styles: [`
+    mat-card{border-radius:16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media(max-width:980px){.grid{grid-template-columns:1fr}}
+    .muted{opacity:.75;font-size:12px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  `],
+  template: `
+    <mat-card>
+      <div class="row" style="justify-content:space-between">
+        <h2>Nouvelle demande de congé</h2>
+        <a mat-stroked-button routerLink="/leaves">Dashboard</a>
+      </div>
+
+      <div class="grid">
+        <div>
+          <mat-form-field appearance="outline" style="width:100%">
+            <mat-label>Type de congé</mat-label>
+            <mat-select [(ngModel)]="typeId" (selectionChange)="recompute()">
+              <mat-option *ngFor="let t of types()" [value]="t.id">{{t.label}}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <div class="grid">
+            <mat-form-field appearance="outline" style="width:100%">
+              <mat-label>Date début</mat-label>
+              <input matInput type="date" [(ngModel)]="startDate" (change)="recompute()" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" style="width:100%">
+              <mat-label>Date fin</mat-label>
+              <input matInput type="date" [(ngModel)]="endDate" (change)="recompute()" />
+            </mat-form-field>
+          </div>
+
+          <mat-form-field appearance="outline" style="width:100%">
+            <mat-label>Note (optionnel)</mat-label>
+            <input matInput [(ngModel)]="note" placeholder="Ex: rendez-vous médical, déplacement..." />
+          </mat-form-field>
+
+          <div class="row">
+            <div><b>Jours ouvrés:</b> {{workingDays() ?? '—'}}</div>
+            <div class="muted">Week-ends + jours fériés exclus</div>
+          </div>
+
+          <div class="row" style="margin-top:10px" *ngIf="selectedBalance() as b">
+            <div><b>Solde:</b> {{ b.remainingDays === null ? '—' : b.remainingDays }} jours restants</div>
+            <div class="muted" *ngIf="selectedType()?.code==='UNPAID'">Sans solde: pas de limite</div>
+          </div>
+
+          <div style="margin-top:12px">
+            <label class="muted" *ngIf="requiresCertificate()">Certificat requis (PDF/JPG/PNG)</label><br/>
+            <input type="file" (change)="onFile($event)" />
+            <div class="muted" *ngIf="fileName">{{fileName}}</div>
+          </div>
+
+          <div class="row" style="margin-top:16px">
+            <button mat-flat-button color="primary" (click)="create()" [disabled]="creating || !canCreate()">
+              Créer (brouillon)
+            </button>
+            <button mat-stroked-button color="primary" (click)="createAndSubmit()" [disabled]="creating || !canSubmit()">
+              Créer & Soumettre
+            </button>
+          </div>
+
+          <div class="muted" style="margin-top:10px" *ngIf="validationMsg()">{{validationMsg()}}</div>
+        </div>
+
+        <div>
+          <mat-card>
+            <h3>Récapitulatif</h3>
+            <p><b>Type:</b> {{selectedType()?.label || '—'}}</p>
+            <p><b>Période:</b> {{startDate || '—'}} → {{endDate || '—'}}</p>
+            <p><b>Jours:</b> {{workingDays() ?? '—'}}</p>
+            <p><b>Certificat:</b> {{requiresCertificate() ? 'Oui' : 'Non'}}</p>
+          </mat-card>
+
+          <mat-card style="margin-top:16px">
+            <h3>Règles</h3>
+            <ul class="muted">
+              <li>Jours calculés en jours ouvrés (samedi/dimanche + jours fériés exclus).</li>
+              <li>Certificat obligatoire si le type l’exige (ex: maladie).</li>
+              <li>Le solde est contrôlé (sauf sans solde).</li>
+              <li>Les chevauchements de dates sont refusés.</li>
+            </ul>
+          </mat-card>
+        </div>
+      </div>
+    </mat-card>
+  `
+})
+export class LeaveCreatePage implements OnInit {
+  year = new Date().getFullYear();
+
+  types = signal<LeaveType[]>([]);
+  balances = signal<BalanceRow[]>([]);
+
+  typeId = '';
+  startDate = '';
+  endDate = '';
+  note = '';
+  workingDays = signal<number|null>(null);
+  file: File | null = null;
+  fileName = '';
+
+  creating = false;
+  validationMsg = signal<string>('');
+
+  constructor(private api: LeaveWorkflowService, private snack: MatSnackBar, private router: Router) {}
+
+  async ngOnInit() {
+    const [typesRes, balRes] = await Promise.all([
+      this.api.listTypes(),
+      this.api.balance(this.year),
+    ]);
+    this.types.set(typesRes.items || []);
+    this.balances.set(balRes.items || []);
+    if ((typesRes.items || []).length) this.typeId = (typesRes.items || [])[0].id;
+    await this.recompute();
+  }
+
+  selectedType(): LeaveType | null {
+    return this.types().find(t => t.id === this.typeId) || null;
+  }
+
+  selectedBalance(): BalanceRow | null {
+    return this.balances().find(b => b.type?.id === this.typeId) || null;
+  }
+
+  requiresCertificate(): boolean {
+    return !!this.selectedType()?.requiresCertificate;
+  }
+
+  private hasSufficientBalance(): boolean {
+    const t = this.selectedType();
+    const days = this.workingDays();
+    if (!t || !days) return false;
+    if (t.code === 'UNPAID') return true;
+    const b = this.selectedBalance();
+    if (!b) return true;
+    if (b.remainingDays === null) return true;
+    return days <= b.remainingDays;
+  }
+
+  async recompute() {
+    this.validationMsg.set('');
+    this.workingDays.set(null);
+    if (!this.startDate || !this.endDate) return;
+    try {
+      const res = await this.api.calculate(this.startDate, this.endDate);
+      this.workingDays.set(res.workingDays ?? null);
+
+      if (this.selectedType()?.code !== 'UNPAID' && !this.hasSufficientBalance()) {
+        this.validationMsg.set('Solde insuffisant pour cette période.');
+      }
+    } catch {
+      this.validationMsg.set('Dates invalides ou impossible de calculer.');
+    }
+  }
+
+  onFile(ev: any) {
+    const f = ev?.target?.files?.[0];
+    this.file = f || null;
+    this.fileName = f ? f.name : '';
+  }
+
+  canCreate(): boolean {
+    return !!this.typeId && !!this.startDate && !!this.endDate && !!this.workingDays();
+  }
+
+  canSubmit(): boolean {
+    if (!this.canCreate()) return false;
+    if (!this.hasSufficientBalance()) return false;
+    if (this.requiresCertificate() && !this.file) return false;
+    return true;
+  }
+
+  async create() {
+    if (!this.canCreate()) return;
+    this.creating = true;
+    try {
+      const res = await this.api.createLeave({ typeId: this.typeId, startDate: this.startDate, endDate: this.endDate, note: this.note });
+      const id = res.leave?.id;
+      if (id && this.file) {
+        await this.api.uploadCertificate(id, this.file);
+      }
+      this.snack.open('Demande créée (brouillon)', 'OK', { duration: 2500 });
+      this.router.navigateByUrl('/leaves/my');
+    } catch (e: any) {
+      const msg = e?.error?.error || 'Erreur';
+      this.snack.open('Échec: ' + msg, 'OK', { duration: 3500 });
+    } finally {
+      this.creating = false;
+    }
+  }
+
+  async createAndSubmit() {
+    if (!this.canSubmit()) {
+      this.validationMsg.set('Vérifie le solde et/ou le certificat.');
+      return;
+    }
+    this.creating = true;
+    try {
+      const res = await this.api.createLeave({ typeId: this.typeId, startDate: this.startDate, endDate: this.endDate, note: this.note });
+      const id = res.leave?.id;
+      if (id && this.file) {
+        await this.api.uploadCertificate(id, this.file);
+      }
+      if (id) await this.api.submitLeave(id);
+      this.snack.open('Demande soumise', 'OK', { duration: 2500 });
+      this.router.navigateByUrl('/leaves');
+    } catch (e: any) {
+      const msg = e?.error?.error || 'Erreur';
+      this.snack.open('Échec: ' + msg, 'OK', { duration: 3500 });
+    } finally {
+      this.creating = false;
+    }
+  }
+}

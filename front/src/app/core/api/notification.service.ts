@@ -21,7 +21,7 @@ export class NotificationService {
    * SSE / Mercure subscription for current user (topic: /users/{apiKey}/notifications)
    */
   subscribeMercure(onMessage: (n: NotificationItem) => void): () => void {
-    const apiKey = storage.getApiKey();
+    const apiKey = storage.getToken();
     if (!apiKey) return () => {};
 
     const topic = `/users/${encodeURIComponent(apiKey)}/notifications`;
