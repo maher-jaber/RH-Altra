@@ -14,10 +14,17 @@ framework:
         - MANAGER_APPROVED
         - HR_APPROVED
         - REJECTED
+        - CANCELLED
       transitions:
         submit:
           from: DRAFT
           to: SUBMITTED
+        cancel_from_draft:
+          from: DRAFT
+          to: CANCELLED
+        cancel_from_submitted:
+          from: SUBMITTED
+          to: CANCELLED
         manager_approve:
           from: SUBMITTED
           to: MANAGER_APPROVED

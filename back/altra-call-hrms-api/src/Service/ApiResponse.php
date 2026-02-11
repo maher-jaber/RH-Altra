@@ -9,9 +9,18 @@ class ApiResponse
 {
     public static function leave(LeaveRequest $l): array
     {
+        $t = $l->getType();
         return [
             'id' => $l->getId(),
-            'type' => $l->getType(),
+            // Always return a JSON-friendly payload (Doctrine proxies can't be normalized safely).
+            'type' => $t ? [
+                'id' => $t->getId(),
+                'code' => $t->getCode(),
+                'label' => $t->getLabel(),
+                'requiresCertificate' => $t->getRequiresCertificate(),
+                'annualAllowance' => $t->getAnnualAllowance(),
+            ] : null,
+            'typeCode' => $l->getTypeCode(),
             'startDate' => $l->getStartDate()->format('Y-m-d'),
             'endDate' => $l->getEndDate()->format('Y-m-d'),
             'halfDay' => $l->getHalfDay(),

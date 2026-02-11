@@ -25,8 +25,10 @@ services:
     image: dunglas/mercure
     environment:
       SERVER_NAME: ':3000'
-      MERCURE_PUBLISHER_JWT_KEY: '!ChangeThisMercureJwtSecret!'
-      MERCURE_SUBSCRIBER_JWT_KEY: '!ChangeThisMercureJwtSecret!'
+      # IMPORTANT: HS256 expects a >= 256-bit secret. Use at least 32 random bytes.
+      # Example: `openssl rand -base64 48` then paste the value in BOTH publisher/subscriber.
+      MERCURE_PUBLISHER_JWT_KEY: '!ChangeThisMercureJwtSecret_32bytes_minimum________!'
+      MERCURE_SUBSCRIBER_JWT_KEY: '!ChangeThisMercureJwtSecret_32bytes_minimum________!'
       MERCURE_EXTRA_DIRECTIVES: |
         cors_origins *
         anonymous
@@ -48,7 +50,8 @@ services:
       APP_SECRET: ChangeMeToASecretValue
       DATABASE_URL: "mysql://root:root@db:3306/altra_hrms?serverVersion=8.0&charset=utf8mb4"
       MERCURE_PUBLIC_URL: "http://mercure:3000/.well-known/mercure"
-      MERCURE_JWT_SECRET: "!ChangeThisMercureJwtSecret!"
+      # Must match MERCURE_*_JWT_KEY in the mercure service above.
+      MERCURE_JWT_SECRET: "!ChangeThisMercureJwtSecret_32bytes_minimum________!"
       # Mailhog
       MAILER_DSN: "smtp://mailhog:1025"
       REDIS_URL: "redis://redis:6379"
@@ -57,6 +60,7 @@ services:
       - ./back/altra-call-hrms-api:/app
       - api_vendor:/app/vendor
       - api_var:/app/var
+    entrypoint: ["sh", "/app/docker-entrypoint.sh"]
     ports:
       - "8000:8000"
     depends_on:

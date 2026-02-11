@@ -25,14 +25,23 @@ class LeaveIcsController extends ApiBase
     public function my(Request $r, EntityManagerInterface $em): Response
     {
         $u = $this->requireUser($r);
-        $rows = $em->getRepository(LeaveRequest::class)->findBy(['user'=>$u->id, 'status'=>'HR_APPROVED'], ['id'=>'DESC']);
+        // Use SQL to stay consistent with our leave_requests schema (api_key + type code).
+        $conn = $em->getConnection();
+        $rows = $conn->fetchAllAssociative(
+            "SELECT lr.id, lr.start_date, lr.end_date, COALESCE(lt.label, lr.type) as type_label
+             FROM leave_requests lr
+             LEFT JOIN leave_types lt ON lt.code = lr.type
+             WHERE lr.status='HR_APPROVED' AND lr.created_by_api_key = ?
+             ORDER BY lr.created_at DESC",
+            [$u->apiKey]
+        );
 
         $ics = $this->icsHeader();
-        foreach($rows as $lr){
-            $start = $lr->getStartDate()->format('Ymd');
+        foreach($rows as $row){
+            $start = (new \DateTimeImmutable($row['start_date']))->format('Ymd');
             // DTEND is exclusive -> +1 day
-            $end = (new \DateTimeImmutable($lr->getEndDate()->format('Y-m-d')))->modify('+1 day')->format('Ymd');
-            $ics .= $this->vevent('leave-'.$lr->getId(), 'Congé - '.$lr->getType()->getLabel(), $start, $end);
+            $end = (new \DateTimeImmutable($row['end_date']))->modify('+1 day')->format('Ymd');
+            $ics .= $this->vevent('leave-'.$row['id'], 'Congé - '.$row['type_label'], $start, $end);
         }
         $ics .= $this->icsFooter();
 
@@ -48,16 +57,22 @@ class LeaveIcsController extends ApiBase
             return new Response('forbidden',403);
         }
 
-        // fetch users in same department
-        $sql = "SELECT l.* FROM leave_requests l JOIN users u2 ON u2.id = l.user_id WHERE u2.department_id = (SELECT department_id FROM users WHERE id = ?) AND l.status = 'HR_APPROVED'";
+        // fetch users in same department (join by api_key)
         $conn = $em->getConnection();
-        $rows = $conn->fetchAllAssociative($sql, [$u->id]);
+        $rows = $conn->fetchAllAssociative(
+            "SELECT lr.id, lr.start_date, lr.end_date, u2.full_name
+             FROM leave_requests lr
+             JOIN users u2 ON u2.api_key = lr.created_by_api_key
+             WHERE u2.department_id = (SELECT department_id FROM users WHERE api_key = ?)
+               AND lr.status = 'HR_APPROVED'",
+            [$u->apiKey]
+        );
 
         $ics = $this->icsHeader();
         foreach($rows as $row){
             $start = (new \DateTimeImmutable($row['start_date']))->format('Ymd');
             $end = (new \DateTimeImmutable($row['end_date']))->modify('+1 day')->format('Ymd');
-            $ics .= $this->vevent('leave-'.$row['id'], 'Congé (Département)', $start, $end);
+            $ics .= $this->vevent('leave-'.$row['id'], 'Congé - '.$row['full_name'], $start, $end);
         }
         $ics .= $this->icsFooter();
 

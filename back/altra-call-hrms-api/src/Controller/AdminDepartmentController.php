@@ -36,4 +36,27 @@ class AdminDepartmentController extends ApiBase {
         $em->persist($d); $em->flush();
         return $this->jsonOk(['id'=>$d->getId(),'name'=>$d->getName()],201);
     }
+
+    #[Route('/api/admin/departments/{id}', methods:['PUT'])]
+    public function update(string $id, Request $r, EntityManagerInterface $em): JsonResponse {
+        $this->requireAdmin($r);
+        $d = $em->getRepository(Department::class)->find($id);
+        if (!$d) return $this->jsonError('not_found', 'Department not found', 404);
+        $data = json_decode($r->getContent(), true) ?: [];
+        if (isset($data['name'])) {
+            $d->setName((string)$data['name']);
+        }
+        $em->flush();
+        return $this->jsonOk(['id'=>$d->getId(),'name'=>$d->getName()]);
+    }
+
+    #[Route('/api/admin/departments/{id}', methods:['DELETE'])]
+    public function delete(string $id, Request $r, EntityManagerInterface $em): JsonResponse {
+        $this->requireAdmin($r);
+        $d = $em->getRepository(Department::class)->find($id);
+        if (!$d) return $this->jsonError('not_found', 'Department not found', 404);
+        $em->remove($d);
+        $em->flush();
+        return $this->jsonOk(['deleted'=>true]);
+    }
 }

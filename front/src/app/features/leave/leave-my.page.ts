@@ -24,7 +24,7 @@ import { LeaveRequest } from '../../core/models';
         <table mat-table [dataSource]="rows" class="mat-elevation-z1" style="width:100%;">
           <ng-container matColumnDef="type">
             <th mat-header-cell *matHeaderCellDef>Type</th>
-            <td mat-cell *matCellDef="let r">{{r.type}}</td>
+            <td mat-cell *matCellDef="let r">{{r.type?.label || r.typeCode || r.type}}</td>
           </ng-container>
 
           <ng-container matColumnDef="period">
@@ -40,7 +40,7 @@ import { LeaveRequest } from '../../core/models';
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let r">
-              <button mat-button (click)="cancel(r)" [disabled]="r.status === 'CANCELLED' || r.status === 'APPROVED'">
+              <button mat-button (click)="cancel(r)" [disabled]="r.status === 'CANCELLED' || r.status === 'HR_APPROVED' || r.status === 'MANAGER_APPROVED'">
                 Annuler
               </button>
             </td>

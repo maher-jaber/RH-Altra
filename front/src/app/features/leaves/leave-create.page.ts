@@ -48,12 +48,12 @@ type BalanceRow = { type: LeaveType; year: number; usedDays: number; remainingDa
           <div class="grid">
             <mat-form-field appearance="outline" style="width:100%">
               <mat-label>Date début</mat-label>
-              <input matInput type="date" [(ngModel)]="startDate" (change)="recompute()" />
+              <input matInput type="date" [min]="minDate" [(ngModel)]="startDate" (change)="recompute()" />
             </mat-form-field>
 
             <mat-form-field appearance="outline" style="width:100%">
               <mat-label>Date fin</mat-label>
-              <input matInput type="date" [(ngModel)]="endDate" (change)="recompute()" />
+              <input matInput type="date" [min]="minDate" [(ngModel)]="endDate" (change)="recompute()" />
             </mat-form-field>
           </div>
 
@@ -115,6 +115,8 @@ type BalanceRow = { type: LeaveType; year: number; usedDays: number; remainingDa
 })
 export class LeaveCreatePage implements OnInit {
   year = new Date().getFullYear();
+  // Prevent selecting past dates (rule requested)
+  minDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
   types = signal<LeaveType[]>([]);
   balances = signal<BalanceRow[]>([]);
@@ -170,6 +172,16 @@ export class LeaveCreatePage implements OnInit {
     this.validationMsg.set('');
     this.workingDays.set(null);
     if (!this.startDate || !this.endDate) return;
+
+    // Front-end strict checks (avoid unnecessary API calls)
+    if (this.startDate < this.minDate || this.endDate < this.minDate) {
+      this.validationMsg.set('Les dates ne doivent pas être dans le passé.');
+      return;
+    }
+    if (this.endDate < this.startDate) {
+      this.validationMsg.set('La date de fin doit être après (ou égale à) la date de début.');
+      return;
+    }
     try {
       const res = await this.api.calculate(this.startDate, this.endDate);
       this.workingDays.set(res.workingDays ?? null);
@@ -189,7 +201,10 @@ export class LeaveCreatePage implements OnInit {
   }
 
   canCreate(): boolean {
-    return !!this.typeId && !!this.startDate && !!this.endDate && !!this.workingDays();
+    if (!this.typeId || !this.startDate || !this.endDate || !this.workingDays()) return false;
+    if (this.startDate < this.minDate || this.endDate < this.minDate) return false;
+    if (this.endDate < this.startDate) return false;
+    return true;
   }
 
   canSubmit(): boolean {
@@ -211,7 +226,12 @@ export class LeaveCreatePage implements OnInit {
       this.snack.open('Demande créée (brouillon)', 'OK', { duration: 2500 });
       this.router.navigateByUrl('/leaves/my');
     } catch (e: any) {
-      const msg = e?.error?.error || 'Erreur';
+      const code = e?.error?.error || 'Erreur';
+      const msg = code === 'overlap'
+        ? 'Chevauchement : vous avez déjà un congé sur cette période.'
+        : code === 'past_dates'
+          ? 'Les dates ne doivent pas être dans le passé.'
+          : code;
       this.snack.open('Échec: ' + msg, 'OK', { duration: 3500 });
     } finally {
       this.creating = false;
@@ -234,7 +254,12 @@ export class LeaveCreatePage implements OnInit {
       this.snack.open('Demande soumise', 'OK', { duration: 2500 });
       this.router.navigateByUrl('/leaves');
     } catch (e: any) {
-      const msg = e?.error?.error || 'Erreur';
+      const code = e?.error?.error || 'Erreur';
+      const msg = code === 'overlap'
+        ? 'Chevauchement : vous avez déjà un congé sur cette période.'
+        : code === 'past_dates'
+          ? 'Les dates ne doivent pas être dans le passé.'
+          : code;
       this.snack.open('Échec: ' + msg, 'OK', { duration: 3500 });
     } finally {
       this.creating = false;

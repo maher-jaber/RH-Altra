@@ -28,8 +28,13 @@ export class AuthService {
 
   async refreshMe(): Promise<void> {
     if (!this.token) { this._me.set(null); return; }
-    const me = await firstValueFrom(this.http.get<MeResponse>(`${environment.apiBaseUrl}/api/me`));
-    this._me.set(me);
+    try {
+      const me = await firstValueFrom(this.http.get<MeResponse>(`${environment.apiBaseUrl}/api/me`));
+      this._me.set(me);
+    } catch {
+      // If the API is down (500) or token invalid, keep the UI usable and send user to login.
+      this._me.set(null);
+    }
   }
 
   logout(): void {

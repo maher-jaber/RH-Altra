@@ -1,27 +1,143 @@
-
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
-import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
 import { FormsModule } from '@angular/forms';
 import { DepartmentService } from '../../core/api/department.service';
+import { AlertService } from '../../core/ui/alert.service';
 
 @Component({
- standalone:true,
- selector:'app-admin-departments',
- imports:[CommonModule,FormsModule,MatCardModule,MatInputModule,MatButtonModule],
- template:`
- <mat-card>
-  <h2>Départements</h2>
-  <input matInput placeholder="Nouveau département" [(ngModel)]="name">
-  <button mat-flat-button color="primary" (click)="add()">Ajouter</button>
-  <ul><li *ngFor="let d of items()">{{d.name}}</li></ul>
- </mat-card>`
+  standalone: true,
+  selector: 'app-admin-departments',
+  imports: [CommonModule, FormsModule],
+  styles: [`
+    .card { border: 1px solid var(--stroke); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-sm); }
+    .card-header { padding: 14px 16px; border-bottom: 1px solid var(--stroke); background: rgba(255,255,255,.55); border-top-left-radius: 18px; border-top-right-radius: 18px; }
+    .card-body { padding: 16px; }
+    .table thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+    .name-input { max-width: 420px; }
+  `],
+  template: `
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <div>
+          <div class="h5 mb-0">Départements</div>
+          <div class="text-muted small">Créer, modifier, supprimer les départements.</div>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" (click)="reload()">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span class="ms-1">Rafraîchir</span>
+        </button>
+      </div>
+
+      <div class="card-body">
+        <div class="row g-2 align-items-end mb-3">
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ editingId ? 'Renommer un département' : 'Nouveau département' }}</label>
+            <div class="input-group name-input">
+              <span class="input-group-text"><i class="bi bi-building"></i></span>
+              <input class="form-control" [(ngModel)]="name" placeholder="Ex: IT, RH, Finance..." />
+            </div>
+          </div>
+          <div class="col-12 col-lg-auto">
+            <button class="btn btn-primary" (click)="save()" [disabled]="!name.trim()">
+              <i class="bi bi-check2-circle"></i>
+              <span class="ms-1">{{ editingId ? 'Enregistrer' : 'Ajouter' }}</span>
+            </button>
+            <button *ngIf="editingId" class="btn btn-outline-secondary ms-2" (click)="cancel()">
+              Annuler
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Nom</th>
+                <th style="width: 180px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let d of items()">
+                <td>
+                  <div class="fw-semibold">{{ d.name }}</div>
+                  <div class="text-muted small">ID: {{ d.id }}</div>
+                </td>
+                <td class="text-end">
+                  <button class="btn btn-outline-secondary btn-sm me-2" (click)="edit(d)">
+                    <i class="bi bi-pencil"></i>
+                    <span class="ms-1">Modifier</span>
+                  </button>
+                  <button class="btn btn-outline-danger btn-sm" (click)="remove(d)">
+                    <i class="bi bi-trash"></i>
+                    <span class="ms-1">Supprimer</span>
+                  </button>
+                </td>
+              </tr>
+
+              <tr *ngIf="!items().length">
+                <td colspan="2" class="text-muted">Aucun département.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `
 })
 export class AdminDepartmentsPage implements OnInit {
- items=signal<any[]>([]); name='';
- constructor(private api:DepartmentService){}
- async ngOnInit(){ this.items.set((await this.api.list()).items); }
- async add(){ if(!this.name)return; await this.api.create(this.name); this.ngOnInit(); this.name=''; }
+  items = signal<any[]>([]);
+  name = '';
+  editingId: string | null = null;
+
+  constructor(private api: DepartmentService, private alert: AlertService) {}
+
+  async ngOnInit() {
+    await this.reload();
+  }
+
+  async reload() {
+    const res = await this.api.list();
+    this.items.set(res.items || []);
+  }
+
+  edit(d: any) {
+    this.editingId = d.id;
+    this.name = d.name;
+  }
+
+  cancel() {
+    this.editingId = null;
+    this.name = '';
+  }
+
+  async save() {
+    const n = this.name.trim();
+    if (!n) return;
+
+    try {
+      if (this.editingId) {
+        await this.api.update(this.editingId, n);
+      this.alert.toast({ title: 'Département mis à jour', icon: 'success' });
+      } else {
+        await this.api.create(n);
+        this.alert.toast({ title: 'Département ajouté', icon: 'success' });
+      }
+      this.cancel();
+      await this.reload();
+    } catch {
+      this.alert.toast({ title: 'Échec. Vérifie le serveur.', icon: 'error' });
+    }
+  }
+
+  async remove(d: any) {
+    const ok = await this.alert.confirm({ title: 'Supprimer ce département ?', text: `"${d.name}" sera supprimé.`, danger: true });
+    if (!ok) return;
+    try {
+      await this.api.remove(d.id);
+      this.alert.toast({ title: 'Département supprimé', icon: 'success' });
+      await this.reload();
+    } catch {
+      this.alert.toast({ title: 'Impossible de supprimer', text: 'Ce département est probablement utilisé par des utilisateurs.', icon: 'warning' });
+    }
+  }
 }

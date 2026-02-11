@@ -87,4 +87,14 @@ public function getManager2(): ?self { return $this->manager2; }
 public function setManager2(?self $manager2): self { $this->manager2 = $manager2; return $this; }
 
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
+
+    /**
+     * Some controllers seed createdAt explicitly during user creation.
+     * Keeping a setter avoids runtime fatals.
+     */
+    public function setCreatedAt(\DateTimeImmutable $createdAt): self
+    {
+        $this->createdAt = $createdAt;
+        return $this;
+    }
 }

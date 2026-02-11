@@ -2,18 +2,9 @@ import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet, Router, NavigationEnd, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs';
+import { animate, group, query, style, transition, trigger } from '@angular/animations';
 
-import { MatSidenavModule } from '@angular/material/sidenav';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatListModule } from '@angular/material/list';
-import { MatBadgeModule } from '@angular/material/badge';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatExpansionModule } from '@angular/material/expansion';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { AlertService } from '../../core/ui/alert.service';
 
 import { AuthService } from '../../core/auth.service';
 import { NotificationService } from '../../core/api/notification.service';
@@ -24,172 +15,297 @@ import { NotificationItem } from '../../core/models';
   selector: 'app-shell',
   imports: [
     CommonModule, RouterOutlet, RouterLink, RouterLinkActive,
-    MatSidenavModule, MatToolbarModule, MatButtonModule, MatIconModule, MatListModule, MatBadgeModule,
-    MatDividerModule, MatExpansionModule, MatMenuModule, MatTooltipModule,
-    MatSnackBarModule
+  ],
+  animations: [
+    trigger('routeFade', [
+      transition('* <=> *', [
+        // Use absolute (not fixed) to avoid covering the whole UI and hiding content.
+        query(':enter, :leave', [style({ position: 'absolute', inset: '0 0 auto 0', width: '100%' })], { optional: true }),
+        group([
+          query(':leave', [
+            animate('180ms cubic-bezier(.2,.8,.2,1)', style({ opacity: 0, transform: 'translateY(8px) scale(.99)' }))
+          ], { optional: true }),
+          query(':enter', [
+            style({ opacity: 0, transform: 'translateY(10px) scale(.99)' }),
+            animate('240ms cubic-bezier(.2,.8,.2,1)', style({ opacity: 1, transform: 'translateY(0) scale(1)' }))
+          ], { optional: true }),
+        ])
+      ])
+    ])
   ],
   styles: [`
-    .app-container { height: 100vh; background: var(--app-bg, #f5f6fa); }
-    .sidenav { width: 280px; border-right: 1px solid rgba(0,0,0,.08); }
-    .brandbar { display:flex; align-items:center; gap: 10px; padding: 14px 16px; height: 64px; box-sizing: border-box; }
+    :host { display:block; }
+
+    .app-container {
+      height: 100vh;
+      /* Background is managed globally in styles.css for consistent readability */
+      background: transparent;
+    }
+
+    .sidebar {
+      width: 290px;
+      background: linear-gradient(180deg, var(--surface), var(--surface-2));
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-right: 1px solid var(--stroke);
+    }
+
+    .brandbar {
+      display:flex;
+      align-items:center;
+      gap: 12px;
+      padding: 14px 16px;
+      height: 68px;
+      box-sizing: border-box;
+    }
+
     .logo {
-      width: 34px; height: 34px; border-radius: 10px;
-      display:grid; place-items:center;
-      background: linear-gradient(135deg, rgba(25,118,210,.18), rgba(255,152,0,.18));
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      display:grid;
+      place-items:center;
+      color: rgba(255,255,255,0.92);
+      background: linear-gradient(135deg, rgba(37,99,235,.65), rgba(124,58,237,.55));
+      box-shadow: 0 14px 35px rgba(0,0,0,.35);
+      transform: translateZ(0);
+      transition: transform var(--dur-2) var(--ease), filter var(--dur-2) var(--ease);
     }
-    .brand { font-weight: 700; letter-spacing: .2px; line-height: 1.1; }
-    .brand-sub { font-size: 12px; opacity: .7; margin-top: 2px; }
+    .logo:hover { transform: translateY(-1px) scale(1.02); filter: brightness(1.08); }
+
+    .brand { font-weight: 800; letter-spacing: .3px; line-height: 1.05; color: var(--text); }
+    .brand-sub { font-size: 12px; color: var(--text-2); margin-top: 3px; }
+
+    .nav-section { padding: 8px 10px 12px; }
+    .nav-title { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--text-2); padding: 12px 12px 8px; }
+
+    .navlink {
+      position: relative;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      margin: 4px 6px;
+      color: var(--text);
+      transition: transform var(--dur-2) var(--ease), background var(--dur-2) var(--ease), border var(--dur-2) var(--ease);
+    }
+    .navlink:hover { transform: translateY(-1px); background: rgba(29,78,216,0.08); }
+    .navlink.active {
+      background: linear-gradient(90deg, rgba(37,99,235,.28), rgba(124,58,237,.18));
+      border: 1px solid var(--stroke);
+    }
+    .navlink.active::before {
+      content: '';
+      position: absolute;
+      inset: 10px auto 10px 10px;
+      width: 3px;
+      border-radius: 99px;
+      background: linear-gradient(180deg, rgba(6,182,212,.95), rgba(37,99,235,.95));
+      box-shadow: 0 0 0 6px rgba(6,182,212,.10);
+    }
+
+    .icon-btn {
+      width: 40px; height: 40px;
+      border-radius: 999px;
+      display:inline-grid;
+      place-items:center;
+      border: 1px solid var(--stroke);
+      background: var(--surface-2);
+      color: var(--text);
+      transition: transform var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
+    }
+    .icon-btn:hover { transform: translateY(-1px); background: var(--surface); }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: linear-gradient(180deg, var(--surface), var(--surface-2));
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--stroke);
+    }
+
     .content { padding: 18px; }
-    .spacer { flex: 1 1 auto; }
-    .nav-section { padding: 6px 8px 10px; }
-    .nav-title { font-size: 12px; font-weight: 700; opacity: .65; padding: 10px 12px 6px; }
-    a.mat-mdc-list-item { border-radius: 10px; margin: 2px 6px; }
-    a.mat-mdc-list-item.active { background: rgba(25,118,210,.10); }
-    .topbar { position: sticky; top: 0; z-index: 5; }
-    .user-pill { display:flex; align-items:center; gap: 10px; }
-    .avatar {
-      width: 32px; height: 32px; border-radius: 999px;
-      background: rgba(0,0,0,.08);
-      display:grid; place-items:center;
-      font-weight: 700; font-size: 12px;
+
+    .route-host {
+      position: relative;
+      min-height: calc(100vh - 68px - 36px);
     }
-    .user-meta { display:flex; flex-direction: column; line-height: 1.1; }
-    .user-name { font-size: 13px; font-weight: 600; }
-    .user-role { font-size: 11px; opacity: .7; }
+    .spacer { flex: 1 1 auto; }
+
+    .pill {
+      display:inline-flex;
+      align-items:center;
+      gap: 10px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .avatar {
+      width: 34px; height: 34px; border-radius: 999px;
+      background: linear-gradient(135deg, rgba(6,182,212,.35), rgba(37,99,235,.35));
+      border: 1px solid var(--stroke);
+      display:grid; place-items:center;
+      font-weight: 800; font-size: 12px;
+      color: var(--text);
+    }
+
+    .user-meta { display:flex; flex-direction: column; line-height: 1.05; }
+    .user-name { font-size: 13px; font-weight: 800; color: var(--text); }
+    .user-role { font-size: 11px; color: var(--text-2); }
+
+    .title {
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      color: var(--text);
+    }
+
+    .title .crumb { opacity: .65; font-weight: 700; }
+    .title .sep { opacity: .35; }
+
+    .route-host { animation: fadeUp var(--dur-3) var(--ease) both; }
+
     @media (max-width: 980px) {
-      .sidenav { width: 84px; }
+      .sidebar { width: 86px; }
       .brand-text { display:none; }
       .nav-title { display:none; }
       .user-meta { display:none; }
-      a.mat-mdc-list-item .mdc-list-item__primary-text { display:none; }
+      .navlink span.label { display:none; }
+      .navlink.active::before { left: 6px; }
     }
   `],
   template: `
-  <mat-sidenav-container class="app-container">
-    <mat-sidenav class="sidenav" mode="side" opened>
+  <div class="app-container d-flex">
+    <aside class="sidebar">
       <div class="brandbar">
-        <div class="logo"><mat-icon>corporate_fare</mat-icon></div>
+        <div class="logo"><i class="bi bi-building"></i></div>
         <div class="brand-text">
           <div class="brand">ALTRACALL HRMS</div>
           <div class="brand-sub">Portail RH interne</div>
         </div>
       </div>
-      <mat-divider></mat-divider>
+      <hr class="border-opacity-25 my-0" style="border-color: rgba(255,255,255,.18)">
 
       <div class="nav-section">
         <div class="nav-title">Général</div>
-        <mat-nav-list>
-          <a mat-list-item routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">
-            <mat-icon>dashboard</mat-icon>
-            <span>Tableau de bord</span>
+        <a class="navlink" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">
+          <i class="bi bi-speedometer2"></i>
+          <span class="label">Tableau de bord</span>
+        </a>
+        <!-- Notifications: only keep the bell icon in the top navbar (less clutter) -->
+
+        <div class="nav-title" style="margin-top:10px">RH</div>
+        <a class="navlink" routerLink="/leaves" routerLinkActive="active">
+          <i class="bi bi-umbrella-beach"></i>
+          <span class="label">Congés</span>
+        </a>
+        <a class="navlink" routerLink="/advances" routerLinkActive="active">
+          <i class="bi bi-cash-coin"></i>
+          <span class="label">Avances / acompte</span>
+        </a>
+        <a class="navlink" routerLink="/exit-permissions" routerLinkActive="active">
+          <i class="bi bi-person-walking"></i>
+          <span class="label">Autorisations de sortie</span>
+        </a>
+        <a class="navlink" routerLink="/daily-reports" routerLinkActive="active">
+          <i class="bi bi-clipboard-check"></i>
+          <span class="label">Compte-rendu journalier</span>
+        </a>
+
+        <div *ngIf="auth.hasRole('ROLE_ADMIN')">
+          <div class="nav-title" style="margin-top:10px">Administration</div>
+          <a class="navlink" routerLink="/admin/users" routerLinkActive="active">
+            <i class="bi bi-shield-lock"></i>
+            <span class="label">Utilisateurs</span>
           </a>
-          <a mat-list-item routerLink="/notifications" routerLinkActive="active">
-            <mat-icon>notifications</mat-icon>
-            <span>Notifications</span>
-            <span class="spacer"></span>
-            <span [matBadge]="unreadCount()" matBadgeOverlap="false"></span>
+          <a class="navlink" routerLink="/admin/departments" routerLinkActive="active">
+            <i class="bi bi-building-gear"></i>
+            <span class="label">Départements</span>
           </a>
-        </mat-nav-list>
-
-        <mat-accordion multi>
-          <mat-expansion-panel [expanded]="true" hideToggle>
-            <mat-expansion-panel-header>
-              <mat-panel-title>RH</mat-panel-title>
-              <mat-panel-description>Congés & demandes</mat-panel-description>
-            </mat-expansion-panel-header>
-
-            <mat-nav-list>
-              <a mat-list-item routerLink="/leaves" routerLinkActive="active">
-                <mat-icon>beach_access</mat-icon>
-                <span>Congés</span>
-              </a>
-              <a mat-list-item routerLink="/advances" routerLinkActive="active">
-                <mat-icon>payments</mat-icon>
-                <span>Avances / acompte</span>
-              </a>
-              <a mat-list-item routerLink="/exit-permissions" routerLinkActive="active">
-                <mat-icon>directions_walk</mat-icon>
-                <span>Autorisations de sortie</span>
-              </a>
-              <a mat-list-item routerLink="/daily-reports" routerLinkActive="active">
-                <mat-icon>fact_check</mat-icon>
-                <span>Compte-rendu journalier</span>
-              </a>
-            </mat-nav-list>
-          </mat-expansion-panel>
-
-          <mat-expansion-panel *ngIf="auth.hasRole('ROLE_ADMIN')" [expanded]="false" hideToggle>
-            <mat-expansion-panel-header>
-              <mat-panel-title>Administration</mat-panel-title>
-              <mat-panel-description>Paramètres</mat-panel-description>
-            </mat-expansion-panel-header>
-
-            <mat-nav-list>
-              <a mat-list-item routerLink="/admin/users" routerLinkActive="active">
-                <mat-icon>admin_panel_settings</mat-icon>
-                <span>Utilisateurs</span>
-              </a>
-              <a mat-list-item routerLink="/admin/departments" routerLinkActive="active">
-                <mat-icon>apartment</mat-icon>
-                <span>Départements</span>
-              </a>
-            </mat-nav-list>
-          </mat-expansion-panel>
-        </mat-accordion>
+        </div>
       </div>
-    </mat-sidenav>
+    </aside>
 
-    <mat-sidenav-content>
-      <mat-toolbar class="topbar">
-        <span>{{pageTitle()}}</span>
-        <span class="spacer"></span>
+    <div class="flex-grow-1 d-flex flex-column" style="min-width: 0;">
+      <div class="topbar">
+        <div class="d-flex align-items-center px-3" style="height: 68px;">
+          <div class="title">
+            <span class="crumb">ALTRACALL</span>
+            <span class="sep">/</span>
+            <span>{{pageTitle()}}</span>
+          </div>
+          <div class="spacer"></div>
 
-        <button mat-icon-button routerLink="/notifications" matTooltip="Notifications">
-          <mat-icon [matBadge]="unreadCount()" matBadgeOverlap="false">notifications</mat-icon>
-        </button>
+          <a class="icon-btn me-2 position-relative" routerLink="/notifications" title="Notifications">
+            <i class="bi bi-bell"></i>
+            <span *ngIf="unreadCount()" class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger" style="font-size: 10px;">{{unreadCount()}}</span>
+          </a>
 
-        <button mat-button [matMenuTriggerFor]="userMenu" class="user-pill" *ngIf="auth.me() as me">
-          <span class="avatar">{{initials()}}</span>
-          <span class="user-meta">
-            <span class="user-name">{{me.fullName}}</span>
-            <span class="user-role">{{roleLabel()}}</span>
-          </span>
-          <mat-icon>expand_more</mat-icon>
-        </button>
-
-        <mat-menu #userMenu="matMenu">
-          <button mat-menu-item disabled>
-            <mat-icon>person</mat-icon>
-            <span>Mon profil</span>
+          <button class="icon-btn me-2" type="button" (click)="toggleUiMode()" [title]="uiMode() === 'dark' ? 'Mode clair' : 'Mode sombre'">
+            <i class="bi" [ngClass]="uiMode() === 'dark' ? 'bi-sun' : 'bi-moon'"></i>
           </button>
-          <button mat-menu-item (click)="logout()">
-            <mat-icon>logout</mat-icon>
-            <span>Déconnexion</span>
-          </button>
-        </mat-menu>
-      </mat-toolbar>
+
+          <div class="dropdown" *ngIf="auth.me() as me">
+            <button class="pill dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <span class="avatar">{{initials()}}</span>
+              <span class="user-meta">
+                <span class="user-name">{{me.fullName}}</span>
+                <span class="user-role">{{roleLabel()}}</span>
+              </span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" style="min-width: 220px;">
+              <li><a class="dropdown-item" routerLink="/profile"><i class="bi bi-person me-2"></i>Profil</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><button class="dropdown-item" type="button" (click)="logout()"><i class="bi bi-box-arrow-right me-2"></i>Déconnexion</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
 
       <div class="content">
-        <router-outlet></router-outlet>
+        <div class="route-host" [@routeFade]="routeAnimKey()">
+          <router-outlet></router-outlet>
+        </div>
       </div>
-    </mat-sidenav-content>
-  </mat-sidenav-container>
+    </div>
+  </div>
   `
 })
 export class ShellComponent implements OnInit, OnDestroy {
   unreadCount = signal<number>(0);
   pageTitle = signal<string>('Tableau de bord');
+  // Initialize with a stable value to avoid NG0100 on first render.
+  routeAnimKey = signal<string>('dashboard');
+  // Light-first for maximum readability (users reported content not visible with dark tokens).
+  uiMode = signal<'dark' | 'light'>('light');
   private stopSse: (() => void) | null = null;
 
   constructor(
     public auth: AuthService,
     private notif: NotificationService,
-    private snack: MatSnackBar,
+    private alert: AlertService,
     private router: Router,
     private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
+    // Set the initial animation key synchronously (prevents ExpressionChangedAfterItHasBeenCheckedError)
+    // because the first navigation can happen in the same change-detection tick.
+    this.routeAnimKey.set((this.router.url || '').replace(/^\//, '') || 'dashboard');
+    // UI mode (dark/light) — stored locally
+    const saved = (localStorage.getItem('hrms-ui-mode') || 'light') as 'dark' | 'light';
+    this.uiMode.set(saved);
+    this.applyUiMode();
+
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
       // Prefer route title (Routes.title), fallback to URL heuristics.
       const t = this.deepestTitle();
@@ -199,23 +315,40 @@ export class ShellComponent implements OnInit, OnDestroy {
         if (url.startsWith('/notifications')) this.pageTitle.set('Notifications');
         else this.pageTitle.set('Tableau de bord');
       }
+
+      // Update route animation key synchronously. Initial value is already set above.
+      const urlKey = (this.router.url || '').replace(/^\//, '') || 'dashboard';
+      this.routeAnimKey.set(urlKey);
     });
 
     // Load initial notifications count
     this.notif.list().subscribe(list => {
-      this.unreadCount.set(list.filter(n => !n.readAt).length);
+      this.unreadCount.set(list.filter(n => !n.isRead).length);
     });
 
     // Start SSE
     this.stopSse = this.notif.subscribeMercure((n: NotificationItem) => {
       this.unreadCount.set(this.unreadCount() + 1);
-      this.snack.open(n.title, 'Voir', { duration: 3500 })
-        .onAction().subscribe(() => this.router.navigateByUrl('/notifications'));
+      this.alert.toast({ icon: 'info', title: n.title, text: n.body });
     });
   }
 
   ngOnDestroy(): void {
     if (this.stopSse) this.stopSse();
+  }
+
+  // NOTE: routeKey(outlet) removed to avoid NG04012 + NG0100 issues.
+
+  toggleUiMode(): void {
+    const next = this.uiMode() === 'dark' ? 'light' : 'dark';
+    this.uiMode.set(next);
+    localStorage.setItem('hrms-ui-mode', next);
+    this.applyUiMode();
+  }
+
+  private applyUiMode(): void {
+    // Tokens are handled in global CSS using [data-ui-mode].
+    document.documentElement.setAttribute('data-ui-mode', this.uiMode());
   }
 
   logout(): void {

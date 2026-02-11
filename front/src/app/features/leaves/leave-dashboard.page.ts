@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
 import { RouterModule } from '@angular/router';
 import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
+import { AuthService } from '../../core/auth.service';
 
 @Component({
   standalone:true,
@@ -24,12 +25,12 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
         <a mat-stroked-button routerLink="/leaves/my">Mes demandes</a>
         <a mat-stroked-button routerLink="/leaves/pending-manager">Validation Manager</a>
-        <a mat-stroked-button routerLink="/leaves/pending-hr">Validation RH</a>
+        <a *ngIf="isAdmin" mat-stroked-button routerLink="/leaves/pending-hr">Validation RH</a>
       </div>
 
       <p><b>Mes demandes:</b> {{my().length}}</p>
       <p><b>À valider (manager):</b> {{pendingManager().length}}</p>
-      <p><b>À valider (RH):</b> {{pendingHr().length}}</p>
+      <p *ngIf="isAdmin"><b>À valider (RH):</b> {{pendingHr().length}}</p>
     </mat-card>
 
     <mat-card>
@@ -58,13 +59,22 @@ export class LeaveDashboardPage implements OnInit {
   my=signal<any[]>([]); pendingManager=signal<any[]>([]); pendingHr=signal<any[]>([]);
   balances=signal<any[]>([]);
   balCols = ['type','used','remaining'];
+  isAdmin = false;
 
-  constructor(private api:LeaveWorkflowService){}
+  constructor(private api:LeaveWorkflowService, private auth: AuthService){}
 
   async ngOnInit(){
-    const [my, pm, ph, bal] = await Promise.all([
-      this.api.my(), this.api.pendingManager(), this.api.pendingHr(), this.api.balance(this.year)
-    ]);
+    this.isAdmin = this.auth.hasRole('ROLE_ADMIN');
+
+    // Do NOT call pendingHr for non-admins (403 should not log out anyway, but it is unnecessary traffic).
+    const requests: Promise<any>[] = [this.api.my(), this.api.pendingManager(), this.api.balance(this.year)];
+    if (this.isAdmin) requests.splice(2, 0, this.api.pendingHr());
+
+    const res = await Promise.all(requests);
+    const my = res[0];
+    const pm = res[1];
+    const ph = this.isAdmin ? res[2] : { items: [] };
+    const bal = this.isAdmin ? res[3] : res[2];
     this.my.set(my.items||[]);
     this.pendingManager.set(pm.items||[]);
     this.pendingHr.set(ph.items||[]);

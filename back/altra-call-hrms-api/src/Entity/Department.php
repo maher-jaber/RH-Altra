@@ -5,6 +5,7 @@ use Doctrine\ORM\Mapping as ORM;
 use App\Entity\Company;
 
 #[ORM\Entity]
+#[ORM\Table(name: 'departments')]
 class Department {
 
     #[ORM\Id, ORM\GeneratedValue, ORM\Column(type:"integer")]

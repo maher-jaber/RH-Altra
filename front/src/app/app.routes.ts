@@ -30,6 +30,7 @@ import { AdminDepartmentsPage } from './features/admin/admin-departments.page';
 import { AdvancesPageComponent } from './features/advances/advances.page';
 import { ExitPermissionsPageComponent } from './features/exit-permissions/exit-permissions.page';
 import { DailyReportsPageComponent } from './features/daily-reports/daily-reports.page';
+import { ProfilePage } from './features/profile/profile.page';
 
 export const APP_ROUTES: Routes = [
   { path: 'login', component: LoginPageComponent, title: 'Connexion' },
@@ -64,6 +65,8 @@ export const APP_ROUTES: Routes = [
       { path: 'daily-reports', component: DailyReportsPageComponent, title: 'Compte-rendu journalier' },
 
       { path: 'notifications', component: NotificationsPage, title: 'Notifications' },
+
+      { path: 'profile', component: ProfilePage, title: 'Mon profil' },
 
       { path: 'admin/users', component: AdminUsersPageComponent, canActivate: [adminGuard], title: 'Administration · Utilisateurs' },
       { path: 'admin/departments', component: AdminDepartmentsPage, canActivate: [adminGuard], title: 'Administration · Départements' },

@@ -8,8 +8,8 @@ RUN apk add --no-cache bash git unzip icu-dev libzip-dev oniguruma-dev mysql-cli
 # Install Composer
 RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"   && php composer-setup.php --install-dir=/usr/local/bin --filename=composer   && rm composer-setup.php
 
-# Copy only composer files first (better Docker cache)
-COPY composer.json composer.lock ./
+# Copy only composer.json first (better Docker cache)
+COPY composer.json ./
 
 # Install deps without scripts (bin/console may not be needed yet during build)
 RUN composer install --no-interaction --no-progress --prefer-dist --no-scripts --no-dev

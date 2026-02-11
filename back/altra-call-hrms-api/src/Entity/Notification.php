@@ -42,4 +42,6 @@ class Notification
     public function getType(): string { return $this->type; }
     public function markRead(): self { $this->isRead=true; return $this; }
     public function isRead(): bool { return $this->isRead; }
+
+    public function getCreatedAt(): \DateTimeInterface { return $this->createdAt; }
 }

@@ -3,14 +3,17 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { NotificationItem } from '../models';
 import { storage } from '../storage';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
   constructor(private http: HttpClient, private zone: NgZone) {}
 
   list(): Observable<NotificationItem[]> {
-    return this.http.get<NotificationItem[]>(`${environment.apiBaseUrl}/api/notifications`);
+    // API returns { items: NotificationItem[] }
+    return this.http
+      .get<{ items: NotificationItem[] }>(`${environment.apiBaseUrl}/api/notifications`)
+      .pipe(map((res) => res?.items ?? []));
   }
 
   markAsRead(id: string) {

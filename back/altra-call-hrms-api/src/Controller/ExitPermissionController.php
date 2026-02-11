@@ -45,6 +45,12 @@ class ExitPermissionController extends ApiBase
             return $this->json(['error' => 'startAt/endAt invalid'], 400);
         }
 
+        // Rule: date must not be in the past
+        $today = new \DateTimeImmutable('today');
+        if ($startAt < $today || $endAt < $today) {
+            return $this->json(['error' => 'past_dates'], 400);
+        }
+
         $e = new ExitPermission();
         $e->setUser($user);
         $e->setManager($user->getManager());

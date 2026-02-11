@@ -14,7 +14,7 @@ class LeaveExtraController extends ApiBase
     #[Route('/api/leaves/{id}/attachments', methods:['POST'])]
     public function upload(string $id, Request $r, EntityManagerInterface $em): JsonResponse
     {
-        $u = $this->requireUser($r);
+        $u = $this->requireDbUser($r, $em);
         $lr = $em->getRepository(LeaveRequest::class)->find($id);
         if(!$lr || $lr->getUser()?->getId()!==$u->getId()) return $this->json(['error'=>'forbidden'],403);
 
@@ -46,7 +46,7 @@ class LeaveExtraController extends ApiBase
     #[Route('/api/leaves/{id}/audit', methods:['GET'])]
     public function audit(string $id, Request $r, EntityManagerInterface $em): JsonResponse
     {
-        $this->requireUser($r);
+        $this->requireDbUser($r, $em);
         $items = $em->getRepository(LeaveAudit::class)->findBy(['leaveRequest'=>$id],['id'=>'DESC']);
         return $this->jsonOk(['items'=>array_map(fn($a)=>[
             'action'=>$a->action,

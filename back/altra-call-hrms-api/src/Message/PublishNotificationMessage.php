@@ -7,8 +7,10 @@ class PublishNotificationMessage
     public function __construct(
         public readonly string $recipientApiKey,
         public readonly string $title,
-        public readonly string $message,
+        public readonly string $body,
+        public readonly string $type,
         public readonly string $notificationId,
-        public readonly string $createdAtIso
+        public readonly string $createdAtIso,
+        public readonly bool $isRead = false
     ) {}
 }

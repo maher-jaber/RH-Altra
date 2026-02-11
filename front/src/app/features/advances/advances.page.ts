@@ -2,77 +2,144 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDividerModule } from '@angular/material/divider';
-
 import { AdvanceService } from '../../core/api/advance.service';
 import { AuthService } from '../../core/auth.service';
+import { AlertService } from '../../core/ui/alert.service';
 import { AdvanceRequest } from '../../core/models';
 
 @Component({
   standalone: true,
   selector: 'app-advances-page',
-  imports: [
-    CommonModule, ReactiveFormsModule,
-    MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatSnackBarModule, MatDividerModule
-  ],
+  imports: [CommonModule, ReactiveFormsModule],
   template: `
-  <mat-card>
-    <h2 style="margin-top:0">Demande d'avance / acompte</h2>
+  <div class="container-fluid p-0">
+    <div class="row g-3">
+      <div class="col-12 col-lg-5">
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-transparent border-0 pb-0">
+            <div class="d-flex align-items-center gap-2">
+              <span class="icon-circle bg-primary-subtle text-primary"><i class="bi bi-cash-coin"></i></span>
+              <div>
+                <h5 class="mb-0">Demande d'avance / acompte</h5>
+                <div class="text-muted small">Formulaire simple, lisible et professionnel</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-body">
+            <form [formGroup]="form" (ngSubmit)="submit()" class="vstack gap-3">
+              <div>
+                <label class="form-label">Montant (DT)</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
+                  <input class="form-control" type="number" min="1" formControlName="amount" placeholder="Ex: 200" />
+                </div>
+                <div class="form-text text-danger" *ngIf="form.controls.amount.touched && form.controls.amount.invalid">
+                  Montant requis (minimum 1 DT).
+                </div>
+              </div>
 
-    <form [formGroup]="form" (ngSubmit)="submit()" style="display:grid;gap:12px;max-width:520px">
-      <mat-form-field appearance="outline">
-        <mat-label>Montant (DT)</mat-label>
-        <input matInput type="number" formControlName="amount" min="1" />
-      </mat-form-field>
+              <div>
+                <label class="form-label">Motif</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-chat-left-text"></i></span>
+                  <input class="form-control" formControlName="reason" placeholder="Ex: Avance sur salaire" />
+                </div>
+              </div>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Motif</mat-label>
-        <input matInput formControlName="reason" />
-      </mat-form-field>
-
-      <button mat-raised-button color="primary" [disabled]="form.invalid || loading()">Envoyer</button>
-    </form>
-  </mat-card>
-
-  <mat-card style="margin-top:16px">
-    <h3 style="margin-top:0">Mes demandes</h3>
-    <div *ngIf="my().length===0" style="opacity:.7">Aucune demande.</div>
-    <div *ngFor="let a of my(); let last = last">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
-        <div>
-          <div><b>#{{a.id}}</b> — {{a.amount}} {{a.currency}}</div>
-          <div style="opacity:.75">{{a.reason || '—'}} · <b>{{a.status}}</b></div>
-        </div>
-        <div style="opacity:.7;font-size:12px">{{a.createdAt | date:'short'}}</div>
-      </div>
-      <mat-divider *ngIf="!last" style="margin:12px 0"></mat-divider>
-    </div>
-  </mat-card>
-
-  <mat-card style="margin-top:16px" *ngIf="canValidate()">
-    <h3 style="margin-top:0">À valider</h3>
-    <div *ngIf="pending().length===0" style="opacity:.7">Rien à valider.</div>
-
-    <div *ngFor="let a of pending(); let last = last">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
-        <div>
-          <div><b>#{{a.id}}</b> — {{a.amount}} {{a.currency}}</div>
-          <div style="opacity:.75">Employé: {{a.user.fullName || a.user.email}}</div>
-          <div style="opacity:.75">{{a.reason || '—'}}</div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button mat-stroked-button (click)="decide(a,'REJECT')">Refuser</button>
-          <button mat-raised-button color="primary" (click)="decide(a,'APPROVE')">Approuver</button>
+              <button class="btn btn-primary btn-lg" type="submit" [disabled]="form.invalid || loading()">
+                <span *ngIf="!loading()"><i class="bi bi-send"></i> Envoyer</span>
+                <span *ngIf="loading()" class="d-inline-flex align-items-center gap-2">
+                  <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                  Envoi...
+                </span>
+              </button>
+            </form>
+          </div>
         </div>
       </div>
-      <mat-divider *ngIf="!last" style="margin:12px 0"></mat-divider>
+
+      <div class="col-12 col-lg-7">
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-transparent border-0 pb-0">
+            <div class="d-flex align-items-center justify-content-between">
+              <div class="d-flex align-items-center gap-2">
+                <span class="icon-circle bg-info-subtle text-info"><i class="bi bi-inbox"></i></span>
+                <div>
+                  <h5 class="mb-0">Mes demandes</h5>
+                  <div class="text-muted small">Historique + statut</div>
+                </div>
+              </div>
+              <button class="btn btn-outline-secondary btn-sm" (click)="reload()" [disabled]="loading()">
+                <i class="bi bi-arrow-clockwise"></i>
+                Rafraîchir
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div *ngIf="my().length===0" class="text-muted">Aucune demande.</div>
+
+            <div *ngIf="my().length>0" class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Montant</th>
+                    <th>Motif</th>
+                    <th>Statut</th>
+                    <th class="text-end">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let a of my()">
+                    <td class="fw-semibold">{{a.id}}</td>
+                    <td>{{a.amount}} {{a.currency}}</td>
+                    <td class="text-truncate" style="max-width: 280px">{{a.reason || '—'}}</td>
+                    <td>
+                      <span class="badge" [class.text-bg-warning]="a.status==='SUBMITTED'" [class.text-bg-success]="a.status==='APPROVED'" [class.text-bg-danger]="a.status==='REJECTED'" [class.text-bg-secondary]="a.status!=='SUBMITTED' && a.status!=='APPROVED' && a.status!=='REJECTED'">
+                        {{a.status}}
+                      </span>
+                    </td>
+                    <td class="text-end text-muted small">{{a.createdAt | date:'short'}}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mt-3" *ngIf="canValidate()">
+          <div class="card-header bg-transparent border-0 pb-0">
+            <div class="d-flex align-items-center gap-2">
+              <span class="icon-circle bg-warning-subtle text-warning"><i class="bi bi-check2-square"></i></span>
+              <div>
+                <h5 class="mb-0">À valider</h5>
+                <div class="text-muted small">Demandes en attente (manager / admin)</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div *ngIf="pending().length===0" class="text-muted">Rien à valider.</div>
+
+            <div *ngIf="pending().length>0" class="vstack gap-2">
+              <div *ngFor="let a of pending()" class="p-3 rounded-3 border bg-body">
+                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+                  <div>
+                    <div class="fw-semibold">#{{a.id}} — {{a.amount}} {{a.currency}}</div>
+                    <div class="text-muted small">Employé: {{a.user.fullName || a.user.email}}</div>
+                    <div class="small">{{a.reason || '—'}}</div>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-outline-danger" (click)="decide(a,'REJECT')"><i class="bi bi-x-circle"></i> Refuser</button>
+                    <button class="btn btn-primary" (click)="decide(a,'APPROVE')"><i class="bi bi-check-circle"></i> Approuver</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-  </mat-card>
+  </div>
   `
 })
 export class AdvancesPageComponent implements OnInit {
@@ -88,7 +155,7 @@ export class AdvancesPageComponent implements OnInit {
   constructor(
     private api: AdvanceService,
     private auth: AuthService,
-    private snack: MatSnackBar
+    private alerts: AlertService,
   ) {}
 
   ngOnInit(): void {
@@ -109,29 +176,43 @@ export class AdvancesPageComponent implements OnInit {
   }
 
   submit(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
     this.loading.set(true);
     const amount = Number(this.form.value.amount);
     const reason = (this.form.value.reason || '').trim();
 
     this.api.create({ amount, reason: reason || null, status: 'SUBMITTED' }).subscribe({
       next: () => {
-        this.snack.open('Demande envoyée', 'OK', { duration: 2500 });
+        this.alerts.toast({ icon: 'success', title: 'Demande envoyée' });
         this.form.reset({ amount: null, reason: '' });
         this.reload();
         this.loading.set(false);
       },
       error: (err) => {
-        this.snack.open(err?.error?.error || 'Erreur', 'OK', { duration: 3500 });
+        this.alerts.toast({ icon: 'error', title: 'Erreur', text: err?.error?.error || 'Impossible d\'envoyer la demande' });
         this.loading.set(false);
       }
     });
   }
 
-  decide(a: AdvanceRequest, decision: 'APPROVE' | 'REJECT'): void {
+  async decide(a: AdvanceRequest, decision: 'APPROVE' | 'REJECT'): Promise<void> {
+    const ok = await this.alerts.confirm({
+      title: decision === 'APPROVE' ? 'Approuver la demande ?' : 'Refuser la demande ?',
+      text: `#${a.id} — ${a.amount} ${a.currency}`,
+      confirmText: decision === 'APPROVE' ? 'Approuver' : 'Refuser',
+      danger: decision === 'REJECT'
+    });
+    if (!ok) return;
+
     this.api.decide(a.id, decision).subscribe({
-      next: () => { this.snack.open('Décision enregistrée', 'OK', { duration: 2000 }); this.reload(); },
-      error: () => this.snack.open('Erreur', 'OK', { duration: 2500 })
+      next: () => {
+        this.alerts.toast({ icon: 'success', title: 'Décision enregistrée' });
+        this.reload();
+      },
+      error: () => this.alerts.toast({ icon: 'error', title: 'Erreur', text: 'Impossible d\'enregistrer la décision' })
     });
   }
 }

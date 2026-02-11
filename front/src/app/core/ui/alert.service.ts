@@ -34,4 +34,35 @@ export class AlertService {
     if (!Swal) { alert(text ?? title); return; }
     await Swal.fire({ title, text, icon: 'error' });
   }
+
+  /**
+   * Toast non-bloquant (haut/droite). Idéal pour notifications.
+   */
+  toast(opts: { title: string; text?: string; icon?: 'success' | 'error' | 'info' | 'warning'; ms?: number; }): void {
+    const Swal = window.Swal;
+    if (!Swal) {
+      // Fallback sans dépendance UI
+      // eslint-disable-next-line no-console
+      console.log(`[toast] ${opts.title}`, opts.text ?? '');
+      return;
+    }
+
+    const Toast = Swal.mixin({
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: opts.ms ?? 2600,
+      timerProgressBar: true,
+      didOpen: (toast: any) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer);
+        toast.addEventListener('mouseleave', Swal.resumeTimer);
+      }
+    });
+
+    Toast.fire({
+      icon: opts.icon ?? 'info',
+      title: opts.title,
+      text: opts.text
+    });
+  }
 }

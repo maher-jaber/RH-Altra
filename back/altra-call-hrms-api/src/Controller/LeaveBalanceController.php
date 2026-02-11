@@ -13,7 +13,7 @@ class LeaveBalanceController extends ApiBase
     #[Route('/api/leaves/balance', methods: ['GET'])]
     public function balance(Request $request, EntityManagerInterface $em): JsonResponse
     {
-        $u = $this->requireUser($request);
+        $u = $this->requireDbUser($request, $em);
         $year = (int)($request->query->get('year') ?? (new \DateTimeImmutable())->format('Y'));
         $from = new \DateTimeImmutable($year . '-01-01');
         $to = new \DateTimeImmutable($year . '-12-31');

@@ -2,6 +2,11 @@ doctrine:
   dbal:
     url: '%env(resolve:DATABASE_URL)%'
   orm:
+    # IMPORTANT:
+    # Our SQL schema uses snake_case column names (created_at, start_date, ...)
+    # while PHP properties are camelCase (createdAt, startDate, ...).
+    # This naming strategy keeps Doctrine consistent with the migrations.
+    naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
     mappings:
       App:
         is_bundle: false

@@ -13,15 +13,15 @@ class LeavePdfController extends ApiBase
     #[Route('/api/leaves/{id}/pdf', methods:['GET'])]
     public function pdf(string $id, \Symfony\Component\HttpFoundation\Request $r, EntityManagerInterface $em, LeavePdfService $svc): Response
     {
-        $this->requireUser($r);
+        $dbUser = $this->requireDbUser($r, $em);
+        $ak = $this->requireUser($r);
         $lr = $em->getRepository(LeaveRequest::class)->find($id);
 if (!$lr) {
     return new Response('Not found', 404);
 }
-$u = $this->requireUser($r);
-$isOwner = $lr->getUser()?->getId() === $u->getId();
-$isHr = in_array('ROLE_HR', $u->roles, true) || in_array('ROLE_ADMIN', $u->roles, true);
-$isMgr = $lr->getManager()?->getId() === $u->getId();
+$isOwner = $lr->getUser()?->getId() === $dbUser->getId();
+$isHr = in_array('ROLE_HR', $ak->roles, true) || in_array('ROLE_ADMIN', $ak->roles, true);
+$isMgr = $lr->getManager()?->getId() === $dbUser->getId();
 if (!$isOwner && !$isHr && !$isMgr) {
     return new Response('Forbidden', 403);
 }

@@ -35,16 +35,18 @@ final class Version20260209090000 extends AbstractMigration
     
         $this->addSql("
             CREATE TABLE notifications (
-              id CHAR(36) NOT NULL,
-              recipient_api_key VARCHAR(80) NOT NULL,
+              id INT AUTO_INCREMENT NOT NULL,
+              user_id INT NOT NULL,
               title VARCHAR(120) NOT NULL,
-              message LONGTEXT NOT NULL,
+              body LONGTEXT DEFAULT NULL,
+              type VARCHAR(60) NOT NULL,
+              is_read TINYINT(1) NOT NULL,
               created_at DATETIME NOT NULL,
-              read_at DATETIME DEFAULT NULL,
+              INDEX idx_notifications_user (user_id),
               PRIMARY KEY(id)
             ) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB
         ");
-        $this->addSql('CREATE INDEX idx_notif_recipient ON notifications (recipient_api_key)');
+        // Foreign key to users is added in a later migration (users table is created later).
     }
     
 

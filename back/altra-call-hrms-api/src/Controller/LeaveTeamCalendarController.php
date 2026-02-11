@@ -17,7 +17,22 @@ class LeaveTeamCalendarController extends ApiBase
         $isPriv = in_array('ROLE_MANAGER',$u->roles,true) || in_array('ROLE_HR',$u->roles,true) || in_array('ROLE_ADMIN',$u->roles,true);
 
         if (!$isPriv) {
-            $items = $em->getConnection()->fetchAllAssociative("SELECT lr.id, lr.start_date as startDate, lr.end_date as endDate, lr.days_count as daysCount, lr.status, lt.label as typeLabel, u.full_name as fullName FROM leave_requests lr JOIN leave_types lt ON lt.id = lr.type_id JOIN users u ON u.id = lr.user_id WHERE lr.status='HR_APPROVED' AND lr.user_id = ?", [$u->id]);
+            // Schema note:
+            // leave_requests stores the requester by api_key and the type by its string code.
+            $items = $em->getConnection()->fetchAllAssociative(
+                "SELECT lr.id,
+                        lr.start_date as startDate,
+                        lr.end_date as endDate,
+                        lr.days_count as daysCount,
+                        lr.status,
+                        COALESCE(lt.label, lr.type) as typeLabel,
+                        u.full_name as fullName
+                 FROM leave_requests lr
+                 JOIN users u ON u.api_key = lr.created_by_api_key
+                 LEFT JOIN leave_types lt ON lt.code = lr.type
+                 WHERE lr.status='HR_APPROVED' AND lr.created_by_api_key = ?",
+                [$u->apiKey]
+            );
             return $this->jsonOk(['items'=>array_map(fn($x)=>[
                 'id'=>(string)$x['id'],
                 'startDate'=>$x['startDate'],
@@ -29,14 +44,22 @@ class LeaveTeamCalendarController extends ApiBase
             ],$items)]);
         }
 
-        $items = $em->getConnection()->fetchAllAssociative("
-            SELECT lr.id, lr.start_date as startDate, lr.end_date as endDate, lr.days_count as daysCount, lr.status,
-                   lt.label as typeLabel, u.full_name as fullName
-            FROM leave_requests lr
-            JOIN leave_types lt ON lt.id = lr.type_id
-            JOIN users u ON u.id = lr.user_id
-            WHERE lr.status='HR_APPROVED' AND u.department_id = (SELECT department_id FROM users WHERE id = ?)
-        ", [$u->id]);
+        $items = $em->getConnection()->fetchAllAssociative(
+            "SELECT lr.id,
+                    lr.start_date as startDate,
+                    lr.end_date as endDate,
+                    lr.days_count as daysCount,
+                    lr.status,
+                    COALESCE(lt.label, lr.type) as typeLabel,
+                    u.full_name as fullName
+             FROM leave_requests lr
+             JOIN users u ON u.api_key = lr.created_by_api_key
+             LEFT JOIN leave_types lt ON lt.code = lr.type
+             WHERE lr.status='HR_APPROVED'
+               AND u.department_id = (SELECT department_id FROM users WHERE api_key = ?)
+            ",
+            [$u->apiKey]
+        );
 
         return $this->jsonOk(['items'=>array_map(fn($x)=>[
             'id'=>(string)$x['id'],

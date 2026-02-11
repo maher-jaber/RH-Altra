@@ -1,97 +1,114 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatButtonModule } from '@angular/material/button';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
 import { LeaveService } from '../../core/api/leave.service';
+import { AlertService } from '../../core/ui/alert.service';
+import { FlatpickrDirective } from '../../core/ui/flatpickr.directive';
 
 @Component({
   standalone: true,
   imports: [
-    CommonModule, ReactiveFormsModule,
-    MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatButtonModule, MatSnackBarModule,FormsModule
+    CommonModule,
+    ReactiveFormsModule,
+    FormsModule,
+    FlatpickrDirective,
   ],
   template: `
   <div class="container">
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Nouvelle demande de congé</mat-card-title>
-        <mat-card-subtitle>Créer puis soumettre au supérieur</mat-card-subtitle>
-      </mat-card-header>
+    <div class="form-card anim-fadeUp">
+      <div class="form-card__header">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+          <div>
+            <div class="form-section-title">Congés</div>
+            <h2 class="m-0">Nouvelle demande de congé</h2>
+            <div class="muted mt-1">Créer puis soumettre au supérieur</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" type="button" (click)="reset()">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Réinitialiser
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <mat-card-content>
-        <form [formGroup]="form" (ngSubmit)="create()"
-              style="display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 12px;">
+      <div class="form-card__body">
+        <form [formGroup]="form" (ngSubmit)="create()" class="row g-3">
 
-          <mat-form-field appearance="outline">
-            <mat-label>Type</mat-label>
-            <mat-select formControlName="type">
-              <mat-option value="ANNUAL">Annuel</mat-option>
-              <mat-option value="SICK">Maladie</mat-option>
-              <mat-option value="EXCEPTIONAL">Exceptionnel</mat-option>
-              <mat-option value="UNPAID">Sans solde</mat-option>
-            </mat-select>
-          </mat-form-field>
+          <div class="col-12 col-md-6 col-lg-4">
+            <label class="form-label">Type</label>
+            <select class="form-select" formControlName="type">
+              <option value="ANNUAL">Annuel</option>
+              <option value="SICK">Maladie</option>
+              <option value="EXCEPTIONAL">Exceptionnel</option>
+              <option value="UNPAID">Sans solde</option>
+            </select>
+          </div>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Date début</mat-label>
-            <input matInput type="date" formControlName="startDate">
-          </mat-form-field>
+          <div class="col-12 col-md-6 col-lg-4">
+            <label class="form-label">Date début</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-calendar2-week"></i></span>
+              <input altraFlatpickr class="form-control" type="text" placeholder="YYYY-MM-DD" formControlName="startDate" autocomplete="off">
+            </div>
+          </div>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Date fin</mat-label>
-            <input matInput type="date" formControlName="endDate">
-          </mat-form-field>
+          <div class="col-12 col-md-6 col-lg-4">
+            <label class="form-label">Date fin</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-calendar2-week"></i></span>
+              <input altraFlatpickr class="form-control" type="text" placeholder="YYYY-MM-DD" formControlName="endDate" autocomplete="off">
+            </div>
+          </div>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Demi-journée (optionnel)</mat-label>
-            <mat-select formControlName="halfDay">
-              <mat-option [value]="null">Aucune</mat-option>
-              <mat-option value="AM">Matin</mat-option>
-              <mat-option value="PM">Après-midi</mat-option>
-            </mat-select>
-          </mat-form-field>
+          <div class="col-12 col-md-6 col-lg-4">
+            <label class="form-label">Demi-journée (optionnel)</label>
+            <select class="form-select" formControlName="halfDay">
+              <option [ngValue]="null">Aucune</option>
+              <option value="AM">Matin</option>
+              <option value="PM">Après-midi</option>
+            </select>
+          </div>
 
-          <mat-form-field appearance="outline" style="grid-column: 1 / -1;">
-            <mat-label>Motif (optionnel)</mat-label>
-            <input matInput formControlName="reason" placeholder="Ex: déplacement, maladie...">
-          </mat-form-field>
+          <div class="col-12">
+            <label class="form-label">Motif (optionnel)</label>
+            <input class="form-control" formControlName="reason" placeholder="Ex: déplacement, maladie...">
+          </div>
 
-          <div style="grid-column: 1 / -1; display:flex; gap: 8px; align-items:center;">
-            <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || loading">
+          <div class="col-12 d-flex align-items-center gap-2 flex-wrap">
+            <button class="btn btn-primary" type="submit" [disabled]="form.invalid || loading">
+              <i class="bi bi-send-check me-1"></i>
               {{loading ? 'Création...' : 'Créer'}}
             </button>
 
-            <span *ngIf="createdId" style="opacity:.8;">
+            <span *ngIf="createdId" class="muted">
               Créée: <strong>{{createdId}}</strong>
             </span>
           </div>
+        </form>
 
-          <mat-card *ngIf="createdId" style="grid-column: 1 / -1; margin-top: 8px;">
-            <mat-card-header>
-              <mat-card-title>Soumission</mat-card-title>
-              <mat-card-subtitle>Pour le MVP, indique la "managerKey" du supérieur (ex: admin)</mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content style="display:flex; gap: 8px; flex-wrap: wrap;">
-              <mat-form-field appearance="outline">
-                <mat-label>managerKey</mat-label>
-                <input matInput [(ngModel)]="managerKey" name="managerKey" placeholder="ex: admin">
-              </mat-form-field>
-              <button mat-raised-button color="accent" (click)="submit()" [disabled]="!managerKey || submitting">
+        <div *ngIf="createdId" class="mt-4">
+          <div class="form-section-title">Soumission</div>
+          <div class="muted mb-2">Pour le MVP, indique la <strong>managerKey</strong> du supérieur (ex: admin)</div>
+
+          <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-6 col-lg-4">
+              <label class="form-label">managerKey</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+                <input class="form-control" [(ngModel)]="managerKey" name="managerKey" placeholder="ex: admin">
+              </div>
+            </div>
+            <div class="col-12 col-md-auto">
+              <button class="btn btn-outline-primary" type="button" (click)="submit()" [disabled]="!managerKey || submitting">
+                <i class="bi bi-check2-circle me-1"></i>
                 {{submitting ? 'Envoi...' : 'Soumettre'}}
               </button>
-            </mat-card-content>
-          </mat-card>
-
-        </form>
-      </mat-card-content>
-    </mat-card>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
   `
 })
@@ -109,7 +126,7 @@ export class LeaveNewPageComponent {
     reason: new FormControl<string | null>(null)
   });
 
-  constructor(private leave: LeaveService, private snack: MatSnackBar) {}
+  constructor(private leave: LeaveService, private alert: AlertService) {}
 
   create() {
     if (this.form.invalid) return;
@@ -117,9 +134,9 @@ export class LeaveNewPageComponent {
     this.leave.create(this.form.value as any).subscribe({
       next: (res: any) => {
         this.createdId = res.id;
-        this.snack.open('Demande créée', 'OK', { duration: 2500 });
+        this.alert.toast({ title: 'Demande créée', icon: 'success' });
       },
-      error: () => this.snack.open('Erreur création', 'OK', { duration: 3500 }),
+      error: () => this.alert.toast({ title: 'Erreur création', icon: 'error' }),
       complete: () => this.loading = false
     });
   }
@@ -128,9 +145,21 @@ export class LeaveNewPageComponent {
     if (!this.createdId) return;
     this.submitting = true;
     this.leave.submit(this.createdId, this.managerKey.trim()).subscribe({
-      next: () => this.snack.open('Demande soumise (notification envoyée)', 'OK', { duration: 3000 }),
-      error: () => this.snack.open('Erreur soumission', 'OK', { duration: 3500 }),
+      next: () => this.alert.toast({ title: 'Demande soumise', text: 'Notification envoyée', icon: 'success' }),
+      error: () => this.alert.toast({ title: 'Erreur soumission', icon: 'error' }),
       complete: () => this.submitting = false
     });
+  }
+
+  reset(): void {
+    this.form.reset({
+      type: 'ANNUAL',
+      startDate: '',
+      endDate: '',
+      halfDay: null,
+      reason: null,
+    } as any);
+    this.createdId = null;
+    this.managerKey = '';
   }
 }

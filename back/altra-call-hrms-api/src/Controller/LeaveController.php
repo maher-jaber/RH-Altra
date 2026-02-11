@@ -3,41 +3,121 @@
 namespace App\Controller;
 
 use App\Entity\LeaveRequest;
+use App\Entity\LeaveType;
 use App\Entity\Notification;
+use App\Entity\User;
 use App\Message\PublishNotificationMessage;
 use App\Repository\LeaveRequestRepository;
-use App\Repository\NotificationRepository;
 use App\Service\ApiResponse;
+use App\Service\LeaveNotificationService;
+use App\Service\WorkingDaysService;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Workflow\WorkflowInterface;
 
+/**
+ * Legacy endpoints used by the "Mes demandes (MVP)" leave UI.
+ * Kept for backward compatibility, but implemented on top of the same
+ * LeaveRequest + LeaveType model and the same Notification/Mercure system.
+ */
 class LeaveController extends ApiBase
 {
     public function __construct(
         private EntityManagerInterface $em,
         private LeaveRequestRepository $leaves,
-        private NotificationRepository $notifs,
         private WorkflowInterface $leave_request,
-        private MessageBusInterface $bus
+        private MessageBusInterface $bus,
+        private WorkingDaysService $workingDays,
+        private LeaveNotificationService $mailer,
     ) {}
 
     #[Route('/api/leave-requests', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
-        $u = $this->requireUser($request);
+        $user = $this->requireDbUser($request, $this->em);
         $payload = json_decode((string) $request->getContent(), true) ?: [];
 
+        $typeCode = strtoupper((string)($payload['type'] ?? $payload['typeCode'] ?? 'ANNUAL'));
+        $startStr = (string)($payload['startDate'] ?? '');
+        $endStr = (string)($payload['endDate'] ?? '');
+
+        if ($startStr === '' || $endStr === '') {
+            return $this->json(['error' => 'startDate/endDate required'], 400);
+        }
+
+        try {
+            $start = new \DateTimeImmutable($startStr);
+            $end = new \DateTimeImmutable($endStr);
+        } catch (\Throwable) {
+            return $this->json(['error' => 'invalid_dates'], 400);
+        }
+
+        if ($end < $start) {
+            return $this->json(['error' => 'invalid_dates'], 400);
+        }
+
+        $today = new \DateTimeImmutable('today');
+        if ($start < $today || $end < $today) {
+            return $this->json(['error' => 'past_dates'], 400);
+        }
+
+        /** @var LeaveType|null $type */
+        $type = $this->em->getRepository(LeaveType::class)->findOneBy(['code' => $typeCode]);
+        if (!$type) {
+            return $this->json(['error' => 'type_not_found'], 404);
+        }
+
+        $days = $this->workingDays->countWorkingDays($start, $end);
+        if ($days <= 0) {
+            return $this->json(['error' => 'no_working_days'], 400);
+        }
+
+        // Drafts are allowed to overlap, BUT active requests (submitted/approved) should block.
+        $activeStatuses = [LeaveRequest::STATUS_SUBMITTED, LeaveRequest::STATUS_MANAGER_APPROVED, LeaveRequest::STATUS_HR_APPROVED];
+        $qb = $this->em->createQueryBuilder();
+        $qb->select('COUNT(l.id)')
+            ->from(LeaveRequest::class, 'l')
+            ->where('l.user = :u')
+            ->andWhere('l.status IN (:statuses)')
+            ->andWhere('l.startDate <= :end AND l.endDate >= :start')
+            ->setParameters(['u' => $user, 'statuses' => $activeStatuses, 'start' => $start, 'end' => $end]);
+        $conf = (int)$qb->getQuery()->getSingleScalarResult();
+        if ($conf > 0) {
+            $qb3 = $this->em->createQueryBuilder();
+            $qb3->select('l')
+                ->from(LeaveRequest::class, 'l')
+                ->where('l.user = :u')
+                ->andWhere('l.status IN (:statuses)')
+                ->andWhere('l.startDate <= :end AND l.endDate >= :start')
+                ->setParameters(['u' => $user, 'statuses' => $activeStatuses, 'start' => $start, 'end' => $end])
+                ->orderBy('l.startDate', 'ASC');
+            $items = $qb3->getQuery()->getResult();
+
+            return $this->json([
+                'error' => 'overlap',
+                'conflicts' => array_map(fn(LeaveRequest $x) => [
+                    'id' => (string)$x->getId(),
+                    'status' => $x->getStatus(),
+                    'startDate' => $x->getStartDate()->format('Y-m-d'),
+                    'endDate' => $x->getEndDate()->format('Y-m-d'),
+                ], $items),
+            ], 409);
+        }
+
         $l = new LeaveRequest();
-        $l->setCreatedByApiKey($u->apiKey);
-        $l->setType((string) ($payload['type'] ?? 'ANNUAL'));
-        $l->setStartDate(new \DateTimeImmutable((string) ($payload['startDate'] ?? 'now')));
-        $l->setEndDate(new \DateTimeImmutable((string) ($payload['endDate'] ?? 'now')));
+        $l->setCreatedByApiKey($user->getApiKey());
+        $l->setUser($user);
+        $l->setManager($user->getManager());
+        $l->setType($type);
+        $l->setStartDate($start);
+        $l->setEndDate($end);
+        $l->setDaysCount($days);
         $l->setHalfDay(($payload['halfDay'] ?? null) ?: null);
         $l->setReason(($payload['reason'] ?? null) ?: null);
+        $l->setStatus(LeaveRequest::STATUS_DRAFT);
 
         $this->em->persist($l);
         $this->em->flush();
@@ -48,21 +128,44 @@ class LeaveController extends ApiBase
     #[Route('/api/leave-requests/my', methods: ['GET'])]
     public function my(Request $request): JsonResponse
     {
-        $u = $this->requireUser($request);
-        $list = $this->leaves->findByCreator($u->apiKey);
+        $u = $this->requireDbUser($request, $this->em);
+        $list = $this->leaves->findBy(['user' => $u], ['id' => 'DESC']);
         return $this->jsonOk(array_map([ApiResponse::class, 'leave'], $list));
     }
 
     #[Route('/api/leave-requests/{id}/submit', methods: ['POST'])]
     public function submit(string $id, Request $request): JsonResponse
     {
-        $u = $this->requireUser($request);
-        $payload = json_decode((string) $request->getContent(), true) ?: [];
-        $managerKey = trim((string)($payload['managerKey'] ?? ''));
-
+        $me = $this->requireDbUser($request, $this->em);
+        /** @var LeaveRequest|null $l */
         $l = $this->leaves->find($id);
-        if (!$l || $l->getCreatedByApiKey() !== $u->apiKey) {
-            return $this->jsonOk(['error' => 'Not found'], 404);
+        if (!$l || $l->getUser()?->getId() !== $me->getId()) {
+            return $this->json(['error' => 'not_found'], 404);
+        }
+
+        // Certificate required?
+        if ($l->getType()?->getRequiresCertificate() && !$l->getCertificatePath()) {
+            return $this->json(['error' => 'certificate_required'], 409);
+        }
+
+        // Re-check overlap at submit time.
+        $activeStatuses = [LeaveRequest::STATUS_SUBMITTED, LeaveRequest::STATUS_MANAGER_APPROVED, LeaveRequest::STATUS_HR_APPROVED];
+        $qb = $this->em->createQueryBuilder();
+        $qb->select('COUNT(x.id)')
+            ->from(LeaveRequest::class, 'x')
+            ->where('x.user = :u')
+            ->andWhere('x.id != :id')
+            ->andWhere('x.status IN (:statuses)')
+            ->andWhere('x.startDate <= :end AND x.endDate >= :start')
+            ->setParameters([
+                'u' => $me,
+                'id' => $l->getId(),
+                'statuses' => $activeStatuses,
+                'start' => $l->getStartDate(),
+                'end' => $l->getEndDate(),
+            ]);
+        if ((int)$qb->getQuery()->getSingleScalarResult() > 0) {
+            return $this->json(['error' => 'overlap'], 409);
         }
 
         if ($this->leave_request->can($l, 'submit')) {
@@ -70,22 +173,27 @@ class LeaveController extends ApiBase
             $this->em->flush();
         }
 
-        // Create notification for manager (MVP: managerKey provided by client)
-        if ($managerKey !== '') {
+        // Notify manager (in-app + mercure + email)
+        $manager = $l->getManager();
+        if ($manager) {
             $n = new Notification();
-            $n->setRecipientApiKey($managerKey);
+            $n->setUser($manager);
             $n->setTitle('Nouvelle demande de congé');
-            $n->setMessage('Une demande de congé est en attente de validation.');
+            $n->setBody('Une demande de congé est en attente de validation.');
+            $n->setType('LEAVE');
             $this->em->persist($n);
             $this->em->flush();
 
             $this->bus->dispatch(new PublishNotificationMessage(
-                recipientApiKey: $managerKey,
+                recipientApiKey: $manager->getApiKey(),
                 title: $n->getTitle(),
-                message: $n->getMessage(),
-                notificationId: $n->getId(),
+                body: (string)$n->getBody(),
+                type: $n->getType(),
+                notificationId: (string)$n->getId(),
                 createdAtIso: $n->getCreatedAt()->format(DATE_ATOM)
             ));
+
+            try { $this->mailer->onSubmit($l); } catch (\Throwable) { /* best-effort */ }
         }
 
         return $this->jsonOk(['status' => $l->getStatus()]);
@@ -94,16 +202,25 @@ class LeaveController extends ApiBase
     #[Route('/api/leave-requests/{id}/cancel', methods: ['POST'])]
     public function cancel(string $id, Request $request): JsonResponse
     {
-        $u = $this->requireUser($request);
+        $me = $this->requireDbUser($request, $this->em);
+        /** @var LeaveRequest|null $l */
         $l = $this->leaves->find($id);
-        if (!$l || $l->getCreatedByApiKey() !== $u->apiKey) {
-            return $this->jsonOk(['error' => 'Not found'], 404);
+        if (!$l || $l->getUser()?->getId() !== $me->getId()) {
+            return $this->json(['error' => 'not_found'], 404);
         }
 
-        if ($this->leave_request->can($l, 'cancel')) {
-            $this->leave_request->apply($l, 'cancel');
-            $this->em->flush();
+        $transition = match ($l->getStatus()) {
+            LeaveRequest::STATUS_DRAFT => 'cancel_from_draft',
+            LeaveRequest::STATUS_SUBMITTED => 'cancel_from_submitted',
+            default => null,
+        };
+
+        if (!$transition || !$this->leave_request->can($l, $transition)) {
+            return $this->json(['error' => 'invalid_status'], 409);
         }
+
+        $this->leave_request->apply($l, $transition);
+        $this->em->flush();
 
         return $this->jsonOk(['status' => $l->getStatus()]);
     }

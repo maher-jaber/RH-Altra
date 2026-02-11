@@ -39,5 +39,9 @@ class DailyReport
     public function setDay(\DateTimeInterface $d): self { $this->day=$d; return $this; }
     public function getContent(): string { return $this->content; }
     public function setContent(string $c): self { $this->content=$c; return $this; }
+
+    public function getCreatedAt(): \DateTimeInterface { return $this->createdAt; }
+    public function getUpdatedAt(): \DateTimeInterface { return $this->updatedAt; }
+
     public function touch(): void { $this->updatedAt=new \DateTimeImmutable(); }
 }

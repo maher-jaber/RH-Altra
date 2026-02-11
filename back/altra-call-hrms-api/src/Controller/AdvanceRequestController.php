@@ -3,15 +3,23 @@
 namespace App\Controller;
 
 use App\Entity\AdvanceRequest;
+use App\Entity\Notification;
+use App\Message\PublishNotificationMessage;
+use App\Service\LeaveNotificationService;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
 
 class AdvanceRequestController extends ApiBase
 {
-    public function __construct(private EntityManagerInterface $em) {}
+    public function __construct(
+        private EntityManagerInterface $em,
+        private MessageBusInterface $bus,
+        private LeaveNotificationService $mailer
+    ) {}
 
     private function getCurrentUser(Request $request): User
     {
@@ -62,6 +70,35 @@ class AdvanceRequestController extends ApiBase
         $this->em->persist($a);
         $this->em->flush();
 
+        // Notify manager only when the request is actually submitted
+        if ($a->getStatus() === AdvanceRequest::STATUS_SUBMITTED && $a->getManager()) {
+            $mgr = $a->getManager();
+            $n = new Notification();
+            $n->setUser($mgr);
+            $n->setTitle('Nouvelle demande d\'avance');
+            $n->setBody('Une demande d\'avance est en attente de validation.');
+            $n->setType('ADVANCE');
+            $this->em->persist($n);
+            $this->em->flush();
+
+            $this->bus->dispatch(new PublishNotificationMessage(
+                recipientApiKey: $mgr->getApiKey(),
+                title: $n->getTitle(),
+                body: (string)$n->getBody(),
+                type: $n->getType(),
+                notificationId: (string)$n->getId(),
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM)
+            ));
+
+            try {
+                $this->mailer->notify(
+                    $mgr->getEmail(),
+                    'Nouvelle demande d\'avance',
+                    '<p>Une demande d\'avance est en attente de validation.</p>'
+                );
+            } catch (\Throwable) { /* best-effort */ }
+        }
+
         return $this->jsonOk($this->serialize($a), 201);
     }
 
@@ -111,6 +148,35 @@ class AdvanceRequestController extends ApiBase
 
         $a->setStatus($decision === 'APPROVE' ? AdvanceRequest::STATUS_APPROVED : AdvanceRequest::STATUS_REJECTED);
         $this->em->flush();
+
+        // Notify employee about the decision
+        if ($a->getUser()) {
+            $emp = $a->getUser();
+            $n = new Notification();
+            $n->setUser($emp);
+            $n->setTitle('Décision sur votre avance');
+            $n->setBody($a->getStatus() === AdvanceRequest::STATUS_APPROVED ? 'Votre demande d\'avance a été approuvée.' : 'Votre demande d\'avance a été refusée.');
+            $n->setType('ADVANCE');
+            $this->em->persist($n);
+            $this->em->flush();
+
+            $this->bus->dispatch(new PublishNotificationMessage(
+                recipientApiKey: $emp->getApiKey(),
+                title: $n->getTitle(),
+                body: (string)$n->getBody(),
+                type: $n->getType(),
+                notificationId: (string)$n->getId(),
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM)
+            ));
+
+            try {
+                $this->mailer->notify(
+                    $emp->getEmail(),
+                    'Décision sur votre avance',
+                    '<p>'.htmlspecialchars((string)$n->getBody()).'</p>'
+                );
+            } catch (\Throwable) { /* best-effort */ }
+        }
 
         return $this->jsonOk($this->serialize($a));
     }
