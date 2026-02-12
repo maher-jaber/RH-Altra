@@ -5,6 +5,7 @@ use App\Entity\LeaveRequest;
 use App\Entity\Notification;
 use App\Message\PublishNotificationMessage;
 use App\Service\LeaveNotificationService;
+use App\Service\SettingsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -35,6 +36,11 @@ class LeaveWorkflowController extends ApiBase {
         $lr=$em->getRepository(LeaveRequest::class)->find($id);
         if(!$lr) return $this->json(['error'=>'not_found'],404);
         if($lr->getManager()?->getId()!==$u->getId()) return $this->json(['error'=>'forbidden'],403);
+        if($lr->getStatus() !== LeaveRequest::STATUS_SUBMITTED) return $this->json(['error'=>'invalid_status'],400);
+
+
+
+
         $data = json_decode((string)$r->getContent(), true) ?: [];
         if (isset($data['comment'])) { $lr->setManagerComment((string)$data['comment']); }
         $lr->setStatus(LeaveRequest::STATUS_MANAGER_APPROVED);
@@ -44,8 +50,10 @@ class LeaveWorkflowController extends ApiBase {
         if ($lr->getUser()) {
             $n = new Notification();
             $n->setUser($lr->getUser());
-            $n->setTitle('Votre congé a été validé par votre manager');
-            $n->setBody('Votre demande est passée à l\'étape RH.');
+            $n->setTitle('Congé · Validé manager');
+            $n->setBody('Votre demande est passée à l\'étape RH. Ouvrez le détail pour voir les dates et commentaires.');
+            $n->setActionUrl('/leaves/detail/' . $lr->getId());
+            $n->setPayload($this->serialize($lr));
             $n->setType('LEAVE');
             $em->persist($n);
             $em->flush();
@@ -56,7 +64,9 @@ class LeaveWorkflowController extends ApiBase {
                 body: (string)$n->getBody(),
                 type: $n->getType(),
                 notificationId: (string)$n->getId(),
-                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM)
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
             ));
         }
 
@@ -83,6 +93,9 @@ class LeaveWorkflowController extends ApiBase {
         $this->requireRole($r,'ROLE_ADMIN');
         $lr=$em->getRepository(LeaveRequest::class)->find($id);
         if(!$lr) return $this->json(['error'=>'not_found'],404);
+
+        if($lr->getStatus() !== LeaveRequest::STATUS_MANAGER_APPROVED) return $this->json(['error'=>'invalid_status'],400);
+
         $data = json_decode((string)$r->getContent(), true) ?: [];
         if (isset($data['comment'])) { $lr->setHrComment((string)$data['comment']); }
         $lr->setStatus(LeaveRequest::STATUS_HR_APPROVED);
@@ -92,8 +105,10 @@ class LeaveWorkflowController extends ApiBase {
         if ($lr->getUser()) {
             $n = new Notification();
             $n->setUser($lr->getUser());
-            $n->setTitle('Votre congé a été validé par la RH');
-            $n->setBody('Votre demande de congé est approuvée.');
+            $n->setTitle('Congé · Approuvé RH');
+            $n->setBody('Votre demande de congé est approuvée. Ouvrez le détail pour voir les dates et commentaires.');
+            $n->setActionUrl('/leaves/detail/' . $lr->getId());
+            $n->setPayload($this->serialize($lr));
             $n->setType('LEAVE');
             $em->persist($n);
             $em->flush();
@@ -104,7 +119,9 @@ class LeaveWorkflowController extends ApiBase {
                 body: (string)$n->getBody(),
                 type: $n->getType(),
                 notificationId: (string)$n->getId(),
-                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM)
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
             ));
         }
 
@@ -120,12 +137,23 @@ class LeaveWorkflowController extends ApiBase {
         EntityManagerInterface $em,
         MessageBusInterface $bus
     ): JsonResponse {
-        $this->requireUser($r);
+        $token = $this->requireUser($r);
+        $me = $this->requireDbUser($r, $em);
         $lr=$em->getRepository(LeaveRequest::class)->find($id);
         if(!$lr) return $this->json(['error'=>'not_found'],404);
+
+        $isAdmin = in_array('ROLE_ADMIN', $token->roles ?? [], true);
+        $isManager = $lr->getManager()?->getId() === $me->getId();
+        if (!$isAdmin && !$isManager) {
+            return $this->json(['error'=>'forbidden'],403);
+        }
+        // only allow reject before final approval
+        if (!in_array($lr->getStatus(), [LeaveRequest::STATUS_SUBMITTED, LeaveRequest::STATUS_MANAGER_APPROVED], true)) {
+            return $this->json(['error'=>'invalid_status'],400);
+        }
         $data = json_decode((string)$r->getContent(), true) ?: [];
         // store comment depending on who rejects
-        $u = $this->requireUser($r);
+        $u = $token;
         if (in_array('ROLE_ADMIN', $u->roles ?? [], true)) {
             if (isset($data['comment'])) { $lr->setHrComment((string)$data['comment']); }
         } else {
@@ -138,8 +166,10 @@ class LeaveWorkflowController extends ApiBase {
         if ($lr->getUser()) {
             $n = new Notification();
             $n->setUser($lr->getUser());
-            $n->setTitle('Votre demande de congé a été refusée');
+            $n->setTitle('Congé · Refusé');
             $n->setBody('Consultez les commentaires (manager / RH) dans le détail de la demande.');
+            $n->setActionUrl('/leaves/detail/' . $lr->getId());
+            $n->setPayload($this->serialize($lr));
             $n->setType('LEAVE');
             $em->persist($n);
             $em->flush();
@@ -150,7 +180,9 @@ class LeaveWorkflowController extends ApiBase {
                 body: (string)$n->getBody(),
                 type: $n->getType(),
                 notificationId: (string)$n->getId(),
-                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM)
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
             ));
         }
 

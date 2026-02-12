@@ -22,4 +22,7 @@ export class ExitPermissionService {
   decide(id: number, decision: 'APPROVE' | 'REJECT') {
     return this.http.post<ExitPermission>(`${environment.apiBaseUrl}/api/exit-permissions/${id}/decision`, { decision });
   }
+  getOne(id: number) {
+    return this.http.get<ExitPermission>(`${environment.apiBaseUrl}/api/exit-permissions/${id}`);
+  }
 }

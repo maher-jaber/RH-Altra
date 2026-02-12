@@ -19,6 +19,10 @@ export class AdvanceService {
     return this.http.get<AdvanceRequest[]>(`${environment.apiBaseUrl}/api/advances/pending`);
   }
 
+  getOne(id: number) {
+    return this.http.get<AdvanceRequest>(`${environment.apiBaseUrl}/api/advances/${id}`);
+  }
+
   decide(id: number, decision: 'APPROVE' | 'REJECT') {
     return this.http.post<AdvanceRequest>(`${environment.apiBaseUrl}/api/advances/${id}/decision`, { decision });
   }

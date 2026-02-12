@@ -18,9 +18,11 @@ class LeaveNotificationService
         private SlackNotifier $slack,
         private WhatsAppNotifier $wa,
         private LoggerInterface $logger,
-        private string $mailerDsn = ''
+        private string $mailerDsn = '',
+        private string $frontendUrl = ''
     ) {
         $this->mailerDsn = $this->mailerDsn ?: (string) ($_ENV['MAILER_DSN'] ?? $_SERVER['MAILER_DSN'] ?? 'smtp://mailhog:1025');
+        $this->frontendUrl = $this->frontendUrl ?: (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
     }
 
     public function notify(string $to, string $subject, string $htmlContent): void
@@ -37,6 +39,69 @@ class LeaveNotificationService
         }
     }
 
+
+    private function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+
+    private function button(string $url, string $label): string
+    {
+        $u = $this->h($url);
+        $l = $this->h($label);
+        return '<p style="margin:20px 0"><a href="'.$u.'" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">'.$l.'</a></p>';
+    }
+
+    private function table(array $rows): string
+    {
+        $out = '<table style="border-collapse:collapse;width:100%;max-width:680px">';
+        foreach ($rows as [$k,$v]) {
+            $out .= '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa;width:180px"><b>'.$this->h($k).'</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$this->h($v).'</td></tr>';
+        }
+        $out .= '</table>';
+        return $out;
+    }
+
+    private function leaveEmailHtml(LeaveRequest $lr, string $title, string $intro): string
+    {
+        $emp = $lr->getUser();
+        $mgr = $lr->getManager();
+        $type = $lr->getType();
+
+        $url = rtrim($this->frontendUrl, '/') . '/leaves/detail/' . $lr->getId();
+
+        $rows = [
+            ['Employé', $emp ? ($emp->getFullName() ?: $emp->getEmail()) : '—'],
+            ['Type', $type ? ($type->getLabel() ?: $type->getCode()) : '—'],
+            ['Du', $lr->getStartDate()?->format('Y-m-d') ?: '—'],
+            ['Au', $lr->getEndDate()?->format('Y-m-d') ?: '—'],
+            ['Jours', (string)($lr->getDaysCount() ?? 0)],
+            ['Statut', (string)$lr->getStatus()],
+        ];
+
+        if ($mgr) $rows[] = ['Manager', $mgr->getFullName() ?: $mgr->getEmail()];
+        if ($lr->getNote()) $rows[] = ['Note', $lr->getNote()];
+        if (method_exists($lr, 'getManagerComment') && $lr->getManagerComment()) $rows[] = ['Commentaire manager', $lr->getManagerComment()];
+        if (method_exists($lr, 'getHrComment') && $lr->getHrComment()) $rows[] = ['Commentaire RH', $lr->getHrComment()];
+
+        return '<div style="font-family:Arial,sans-serif;line-height:1.4">'
+            . '<h2 style="margin:0 0 12px 0">'.$this->h($title).'</h2>'
+            . '<p style="margin:0 0 12px 0">'.$this->h($intro).'</p>'
+            . $this->table($rows)
+            . $this->button($url, 'Ouvrir la demande')
+            . '<p style="opacity:.7;font-size:12px;margin-top:18px">ALTRA HRMS · Notification automatique</p>'
+            . '</div>';
+    }
+
+
+
+    public function onEmployeeSubmit(LeaveRequest $lr): void
+    {
+        $user = $lr->getUser();
+        if (!$user) {
+            return;
+        }
+
+        $this->notify((string) $user->getEmail(), 'Congé · Demande envoyée', $this->leaveEmailHtml($lr, 'Demande de congé envoyée', 'Votre demande a été envoyée. Prochaine étape : validation du manager.'));
+    }
+
     public function onSubmit(LeaveRequest $lr): void
     {
         $manager = $lr->getManager();
@@ -44,11 +109,7 @@ class LeaveNotificationService
             return;
         }
 
-        $this->notify(
-            (string) $manager->getEmail(),
-            'Nouvelle demande de congé',
-            '<p>Une nouvelle demande de congé vous attend.</p>'
-        );
+        $this->notify((string) $manager->getEmail(), 'Nouvelle demande de congé', $this->leaveEmailHtml($lr, 'Nouvelle demande de congé', 'Une nouvelle demande est en attente de votre validation.'));
     }
 
     public function onManagerDecision(LeaveRequest $lr): void
@@ -58,11 +119,7 @@ class LeaveNotificationService
             return;
         }
 
-        $this->notify(
-            (string) $user->getEmail(),
-            'Décision manager sur votre congé',
-            '<p>Votre manager a traité votre demande.</p>'
-        );
+        $this->notify((string) $user->getEmail(), 'Décision manager sur votre congé', $this->leaveEmailHtml($lr, 'Décision manager', 'Votre manager a traité votre demande.'));
     }
 
     public function onHrDecision(LeaveRequest $lr): void
@@ -72,11 +129,7 @@ class LeaveNotificationService
             return;
         }
 
-        $this->notify(
-            (string) $user->getEmail(),
-            'Décision RH sur votre congé',
-            '<p>La RH a finalisé votre demande.</p>'
-        );
+        $this->notify((string) $user->getEmail(), 'Décision RH sur votre congé', $this->leaveEmailHtml($lr, 'Décision RH', 'La RH a finalisé votre demande.'));
     }
 
     /**

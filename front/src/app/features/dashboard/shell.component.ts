@@ -8,6 +8,7 @@ import { AlertService } from '../../core/ui/alert.service';
 
 import { AuthService } from '../../core/auth.service';
 import { NotificationService } from '../../core/api/notification.service';
+import { NotificationStoreService } from '../../core/api/notification-store.service';
 import { NotificationItem } from '../../core/models';
 
 @Component({
@@ -120,12 +121,14 @@ import { NotificationItem } from '../../core/models';
     .topbar {
       position: sticky;
       top: 0;
-      z-index: 5;
+      z-index: 1050;
       background: linear-gradient(180deg, var(--surface), var(--surface-2));
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--stroke);
     }
+
+    .dropdown-menu { z-index: 1060; }
 
     .content { padding: 18px; }
 
@@ -264,6 +267,7 @@ import { NotificationItem } from '../../core/models';
             </button>
             <ul class="dropdown-menu dropdown-menu-end" style="min-width: 220px;">
               <li><a class="dropdown-item" routerLink="/profile"><i class="bi bi-person me-2"></i>Profil</a></li>
+              <li *ngIf="isAdmin()"><a class="dropdown-item" routerLink="/settings"><i class="bi bi-gear me-2"></i>Paramètres</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><button class="dropdown-item" type="button" (click)="logout()"><i class="bi bi-box-arrow-right me-2"></i>Déconnexion</button></li>
             </ul>
@@ -281,7 +285,7 @@ import { NotificationItem } from '../../core/models';
   `
 })
 export class ShellComponent implements OnInit, OnDestroy {
-  unreadCount = signal<number>(0);
+  unreadCount = this.notifStore.unreadCount;
   pageTitle = signal<string>('Tableau de bord');
   // Initialize with a stable value to avoid NG0100 on first render.
   routeAnimKey = signal<string>('dashboard');
@@ -292,6 +296,7 @@ export class ShellComponent implements OnInit, OnDestroy {
   constructor(
     public auth: AuthService,
     private notif: NotificationService,
+    public notifStore: NotificationStoreService,
     private alert: AlertService,
     private router: Router,
     private route: ActivatedRoute
@@ -320,21 +325,19 @@ export class ShellComponent implements OnInit, OnDestroy {
       const urlKey = (this.router.url || '').replace(/^\//, '') || 'dashboard';
       this.routeAnimKey.set(urlKey);
     });
+    // Notifications (unread badge is derived from backend read/unread state)
+    this.notifStore.start();
 
-    // Load initial notifications count
-    this.notif.list().subscribe(list => {
-      this.unreadCount.set(list.filter(n => !n.isRead).length);
-    });
-
-    // Start SSE
+    // Toast for live notifications
     this.stopSse = this.notif.subscribeMercure((n: NotificationItem) => {
-      this.unreadCount.set(this.unreadCount() + 1);
       this.alert.toast({ icon: 'info', title: n.title, text: n.body });
     });
+     
   }
 
   ngOnDestroy(): void {
     if (this.stopSse) this.stopSse();
+    this.notifStore.stop();
   }
 
   // NOTE: routeKey(outlet) removed to avoid NG04012 + NG0100 issues.
@@ -365,6 +368,8 @@ export class ShellComponent implements OnInit, OnDestroy {
     const b = parts.length > 1 ? (parts[parts.length - 1]?.[0] || '') : '';
     return (a + b).toUpperCase();
   });
+
+  isAdmin(): boolean { return (this.auth.me()?.roles || []).includes('ROLE_ADMIN'); }
 
   roleLabel = computed(() => {
     const roles = this.auth.me()?.roles || [];

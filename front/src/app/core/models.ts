@@ -24,6 +24,9 @@ export interface NotificationItem {
   body: string;
   type: string;
   isRead: boolean;
+  createdAt?: string;
+  actionUrl?: string | null;
+  payload?: any;
 }
 
 

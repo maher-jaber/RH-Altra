@@ -54,24 +54,19 @@ export class LeaveWorkflowService {
   statsLeaves() { return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/stats/leaves`)); }
   teamCalendar() { return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/team-calendar`)); }
 
-  // Signatures + archive + PDF
-  signManager(id: string, payload: { name?: string; signature?: string; comment?: string }) {
-    return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves/${id}/sign/manager`, payload));
-  }
-  signHr(id: string, payload: { name?: string; signature?: string; comment?: string }) {
-    return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves/${id}/sign/hr`, payload));
-  }
-  downloadArchive(id: string) {
-    return this.http.get(`${environment.apiBaseUrl}/api/leaves/${id}/archive`, { responseType: 'blob' as const });
-  }
+  // PDF
   downloadPdf(id: string) {
     return this.http.get(`${environment.apiBaseUrl}/api/leaves/${id}/pdf`, { responseType: 'blob' as const });
   }
+
+  // Detail
+  getLeave(id: string) { return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/${id}`)); }
 
   // ICS urls (consumed by external calendar apps)
   icsMyUrl() { return `${environment.apiBaseUrl}/api/leaves/ics/my`; }
   icsDeptUrl() { return `${environment.apiBaseUrl}/api/leaves/ics/department`; }
 
-listNotifications(){ return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/notifications`)); }
-markNotificationRead(id:string){ return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/notifications/${id}/read`, {})); }
+
+  listNotifications(){ return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/notifications`)); }
+  markNotificationRead(id:string){ return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/notifications/${id}/read`, {})); }
 }

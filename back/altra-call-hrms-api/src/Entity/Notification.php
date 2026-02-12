@@ -26,6 +26,13 @@ class Notification
     #[ORM\Column(type:'boolean')]
     private bool $isRead=false;
 
+
+    #[ORM\Column(type:'string', length:255, nullable:true)]
+    private ?string $actionUrl = null;
+
+    #[ORM\Column(type:'json', nullable:true)]
+    private ?array $payload = null;
+
     #[ORM\Column(type:'datetime')]
     private \DateTimeInterface $createdAt;
 
@@ -42,6 +49,13 @@ class Notification
     public function getType(): string { return $this->type; }
     public function markRead(): self { $this->isRead=true; return $this; }
     public function isRead(): bool { return $this->isRead; }
+
+
+    public function setActionUrl(?string $url): self { $this->actionUrl = $url; return $this; }
+    public function getActionUrl(): ?string { return $this->actionUrl; }
+
+    public function setPayload(?array $payload): self { $this->payload = $payload; return $this; }
+    public function getPayload(): ?array { return $this->payload; }
 
     public function getCreatedAt(): \DateTimeInterface { return $this->createdAt; }
 }

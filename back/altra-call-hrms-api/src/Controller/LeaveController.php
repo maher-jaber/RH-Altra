@@ -10,6 +10,7 @@ use App\Message\PublishNotificationMessage;
 use App\Repository\LeaveRequestRepository;
 use App\Service\ApiResponse;
 use App\Service\LeaveNotificationService;
+use App\Service\SettingsService;
 use App\Service\WorkingDaysService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -32,6 +33,7 @@ class LeaveController extends ApiBase
         private MessageBusInterface $bus,
         private WorkingDaysService $workingDays,
         private LeaveNotificationService $mailer,
+        private SettingsService $settings,
     ) {}
 
     #[Route('/api/leave-requests', methods: ['POST'])]
@@ -178,7 +180,9 @@ class LeaveController extends ApiBase
         if ($manager) {
             $n = new Notification();
             $n->setUser($manager);
-            $n->setTitle('Nouvelle demande de congé');
+            $n->setTitle('Demande de congé · ' . ($user->getFullName() ?: $user->getEmail()));
+            $n->setActionUrl('/leaves/detail/' . $l->getId());
+            $n->setPayload(['leaveId'=>(string)$l->getId(), 'startDate'=>$l->getStartDate()->format('Y-m-d'), 'endDate'=>$l->getEndDate()->format('Y-m-d'), 'daysCount'=>$l->getDaysCount(), 'status'=>$l->getStatus(), 'requiresAction'=>true, 'nextStep'=>'MANAGER_ACTION_REQUIRED']);
             $n->setBody('Une demande de congé est en attente de validation.');
             $n->setType('LEAVE');
             $this->em->persist($n);
@@ -190,10 +194,48 @@ class LeaveController extends ApiBase
                 body: (string)$n->getBody(),
                 type: $n->getType(),
                 notificationId: (string)$n->getId(),
-                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM)
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
             ));
 
-            try { $this->mailer->onSubmit($l); } catch (\Throwable) { /* best-effort */ }
+            try { if($this->settings->canSendEmail($manager, 'LEAVE')) { $this->mailer->onSubmit($l); } } catch (\Throwable) { /* best-effort */ }
+        }
+
+
+        // Notify employee (confirmation)
+        $emp = $l->getUser();
+        if ($emp) {
+            $n = new Notification();
+            $n->setUser($emp);
+            $n->setTitle('Congé · Demande envoyée');
+            $n->setActionUrl('/leaves/detail/' . $l->getId());
+            $n->setPayload([
+                'leaveId'=>(string)$l->getId(),
+                'startDate'=>$l->getStartDate()->format('Y-m-d'),
+                'endDate'=>$l->getEndDate()->format('Y-m-d'),
+                'daysCount'=>$l->getDaysCount(),
+                'status'=>$l->getStatus(),
+                'requiresAction'=>false,
+                'nextStep'=>'MANAGER_APPROVAL'
+            ]);
+            $n->setBody('Votre demande a été envoyée. Prochaine étape: validation manager.');
+            $n->setType('LEAVE');
+            $this->em->persist($n);
+            $this->em->flush();
+
+            $this->bus->dispatch(new PublishNotificationMessage(
+                recipientApiKey: $emp->getApiKey(),
+                title: $n->getTitle(),
+                body: (string)$n->getBody(),
+                type: $n->getType(),
+                notificationId: (string)$n->getId(),
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
+            ));
+
+            try { if($this->settings->canSendEmail($emp, 'LEAVE')) { $this->mailer->onEmployeeSubmit($l); } } catch (\Throwable) { /* best-effort */ }
         }
 
         return $this->jsonOk(['status' => $l->getStatus()]);
@@ -221,6 +263,42 @@ class LeaveController extends ApiBase
 
         $this->leave_request->apply($l, $transition);
         $this->em->flush();
+
+
+        // Notify employee (confirmation)
+        $emp = $l->getUser();
+        if ($emp) {
+            $n = new Notification();
+            $n->setUser($emp);
+            $n->setTitle('Congé · Demande envoyée');
+            $n->setActionUrl('/leaves/detail/' . $l->getId());
+            $n->setPayload([
+                'leaveId'=>(string)$l->getId(),
+                'startDate'=>$l->getStartDate()->format('Y-m-d'),
+                'endDate'=>$l->getEndDate()->format('Y-m-d'),
+                'daysCount'=>$l->getDaysCount(),
+                'status'=>$l->getStatus(),
+                'requiresAction'=>false,
+                'nextStep'=>'MANAGER_APPROVAL'
+            ]);
+            $n->setBody('Votre demande a été envoyée. Prochaine étape: validation manager.');
+            $n->setType('LEAVE');
+            $this->em->persist($n);
+            $this->em->flush();
+
+            $this->bus->dispatch(new PublishNotificationMessage(
+                recipientApiKey: $emp->getApiKey(),
+                title: $n->getTitle(),
+                body: (string)$n->getBody(),
+                type: $n->getType(),
+                notificationId: (string)$n->getId(),
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
+            ));
+
+            try { if($this->settings->canSendEmail($emp, 'LEAVE')) { $this->mailer->onEmployeeSubmit($l); } } catch (\Throwable) { /* best-effort */ }
+        }
 
         return $this->jsonOk(['status' => $l->getStatus()]);
     }

@@ -31,6 +31,9 @@ class NotificationController extends ApiBase
             'body'=>$n->getBody(),
             'type'=>$n->getType(),
             'isRead'=>$n->isRead(),
+            'createdAt'=>$n->getCreatedAt()->format(DATE_ATOM),
+            'actionUrl'=>$n->getActionUrl(),
+            'payload'=>$n->getPayload(),
         ], $items);
         return $this->jsonOk(['items'=>$out]);
     }

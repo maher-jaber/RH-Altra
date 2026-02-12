@@ -24,7 +24,30 @@ class LeaveRequestCrudController extends ApiBase
         return $this->jsonOk(['items' => array_map([$this,'serialize'], $items)]);
     }
 
-    #[Route('/api/leaves', methods:['POST'])]
+    
+    #[Route('/api/leaves/{id}', methods:['GET'])]
+    public function getOne(string $id, Request $r, EntityManagerInterface $em): JsonResponse
+    {
+        $token = $this->requireUser($r);
+        $me = $this->requireDbUser($r, $em);
+
+        /** @var LeaveRequest|null $lr */
+        $lr = $em->getRepository(LeaveRequest::class)->find($id);
+        if (!$lr) return $this->json(['error' => 'not_found'], 404);
+
+        $isAdmin = in_array('ROLE_ADMIN', $token->roles ?? [], true);
+        $isOwner = $lr->getUser()?->getId() === $me->getId();
+        $isManager = $lr->getManager()?->getId() === $me->getId();
+
+        if (!$isAdmin && !$isOwner && !$isManager) {
+            return $this->json(['error' => 'forbidden'], 403);
+        }
+
+        return $this->jsonOk(['leave' => $this->serialize($lr)]);
+    }
+
+
+#[Route('/api/leaves', methods:['POST'])]
     public function create(Request $r, EntityManagerInterface $em, WorkingDaysService $svc): JsonResponse
     {
         $u = $this->requireDbUser($r, $em);
@@ -205,9 +228,18 @@ class LeaveRequestCrudController extends ApiBase
         if ($lr->getManager()) {
             $n = new Notification();
             $n->setUser($lr->getManager());
-            $n->setTitle('Nouvelle demande de congé');
-            $n->setBody('Une demande de congé est en attente de validation.');
+
+            $emp = $lr->getUser();
+            $empName = $emp ? ($emp->getFullName() ?: $emp->getEmail()) : 'Employé';
+            $range = ($lr->getStartDate()?->format('Y-m-d') ?? '') . ' → ' . ($lr->getEndDate()?->format('Y-m-d') ?? '');
+            $typeLabel = $lr->getType()?->getLabel() ?: ($lr->getType()?->getCode() ?: 'Congé');
+
+            $n->setTitle('Demande de congé · ' . $empName);
+            $n->setBody($typeLabel . ' · ' . $range . ' · ' . ((string)($lr->getDaysCount() ?? '')). ' jour(s)');
             $n->setType('LEAVE');
+
+            $n->setActionUrl('/leaves/detail/' . $lr->getId());
+            $n->setPayload($this->serialize($lr));
             $em->persist($n);
             $em->flush();
 
@@ -217,7 +249,9 @@ class LeaveRequestCrudController extends ApiBase
                 body: (string)$n->getBody(),
                 type: $n->getType(),
                 notificationId: (string)$n->getId(),
-                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM)
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
             ));
 
             // Best-effort email (MAILER_DSN must be configured)

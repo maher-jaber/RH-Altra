@@ -33,6 +33,12 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
         <th mat-header-cell *matHeaderCellDef>Statut</th>
         <td mat-cell *matCellDef="let x"><b>{{x.status}}</b></td>
       </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let x">
+          <a mat-stroked-button [routerLink]="['/leaves/detail', x.id]">Détail</a>
+        </td>
+      </ng-container>
       <tr mat-header-row *matHeaderRowDef="cols"></tr>
       <tr mat-row *matRowDef="let row; columns: cols;"></tr>
     </table>
@@ -41,7 +47,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
 })
 export class LeaveMyPage implements OnInit{
   items=signal<any[]>([]);
-  cols=['type','period','status'];
+  cols=['type','period','status','actions'];
   constructor(private api:LeaveWorkflowService){}
   async ngOnInit(){ this.items.set((await this.api.my()).items||[]); }
 }

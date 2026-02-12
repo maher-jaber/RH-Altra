@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\ExitPermission;
 use App\Entity\User;
+use App\Service\SettingsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -11,7 +12,7 @@ use Symfony\Component\Routing\Annotation\Route;
 
 class ExitPermissionController extends ApiBase
 {
-    public function __construct(private EntityManagerInterface $em) {}
+    public function __construct(private EntityManagerInterface $em, private SettingsService $settings) {}
 
     private function getCurrentUser(Request $request): User
     {
@@ -46,6 +47,20 @@ class ExitPermissionController extends ApiBase
         }
 
         // Rule: date must not be in the past
+        // Optional rule: enforce working hours window (configurable in Settings)
+        $enforce = (bool)$this->settings->get(\App\Service\SettingsService::KEY_EXIT_ENFORCE_HOURS, false);
+        if ($enforce) {
+            $ws = (string)$this->settings->get(\App\Service\SettingsService::KEY_EXIT_WORK_START, '08:00');
+            $we = (string)$this->settings->get(\App\Service\SettingsService::KEY_EXIT_WORK_END, '18:00');
+            // compare times only (HH:MM)
+            $startT = $startAt->format('H:i');
+            $endT   = $endAt->format('H:i');
+            if ($startT < $ws || $endT > $we) {
+                return $this->json(['error' => 'outside_work_hours', 'workStart'=>$ws, 'workEnd'=>$we], 409);
+            }
+        }
+
+
         $today = new \DateTimeImmutable('today');
         if ($startAt < $today || $endAt < $today) {
             return $this->json(['error' => 'past_dates'], 400);

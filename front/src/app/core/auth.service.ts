@@ -37,6 +37,14 @@ export class AuthService {
     }
   }
 
+  async updateMe(payload: { fullName?: string; email?: string; currentPassword?: string; newPassword?: string }): Promise<MeResponse> {
+    if (!this.token) throw new Error('Not authenticated');
+    const me = await firstValueFrom(this.http.put<MeResponse>(`${environment.apiBaseUrl}/api/me`, payload));
+    this._me.set(me);
+    return me;
+  }
+
+
   logout(): void {
     storage.clear();
     this._me.set(null);

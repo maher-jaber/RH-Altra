@@ -52,13 +52,6 @@ import { environment } from '../../../environments/environment';
               {{loading ? 'Envoi...' : 'Envoyer'}}
             </button>
           </div>
-
-          <div *ngIf="devToken" class="alert alert-warning mt-3" style="border-radius:14px">
-            <b>DEV Token:</b> {{devToken}}
-            <div style="margin-top:6px">
-              <a [routerLink]="['/reset-password']" [queryParams]="{token: devToken}">Aller à la page reset</a>
-            </div>
-          </div>
         </form>
       </div>
     </div>
@@ -67,7 +60,6 @@ import { environment } from '../../../environments/environment';
 })
 export class ForgotPasswordPageComponent {
   loading = false;
-  devToken: string | null = null;
 
   form = new FormGroup({
     email: new FormControl('', [Validators.required, Validators.email]),
@@ -78,13 +70,12 @@ export class ForgotPasswordPageComponent {
   async onSubmit() {
     if (this.form.invalid) return;
     this.loading = true;
-    this.devToken = null;
+    
 
     try {
-      const res = await firstValueFrom(this.http.post<{ok: boolean; devToken?: string}>(`${environment.apiBaseUrl}/api/auth/forgot-password`, {
+      await firstValueFrom(this.http.post<{ok: boolean}>(`${environment.apiBaseUrl}/api/auth/forgot-password`, {
         email: this.form.value.email
       }));
-      this.devToken = res.devToken ?? null;
       this.alert.toast({ icon: 'success', title: 'Demande envoyée', text: 'Si le compte existe, un email sera envoyé.' });
     } catch {
       await this.alert.error('Erreur', 'API indisponible');

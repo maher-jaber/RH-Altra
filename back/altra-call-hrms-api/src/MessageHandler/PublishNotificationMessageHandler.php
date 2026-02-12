@@ -24,7 +24,10 @@ class PublishNotificationMessageHandler
             'title' => $msg->title,
             'body' => $msg->body,
             'type' => $msg->type,
-            'isRead' => $msg->isRead
+            'isRead' => $msg->isRead,
+            'createdAt' => $msg->createdAtIso,
+            'actionUrl' => $msg->actionUrl,
+            'payload' => $msg->payload
         ], JSON_UNESCAPED_UNICODE);
 
         // Mercure is "best-effort" for the MVP. If the hub is misconfigured or down,

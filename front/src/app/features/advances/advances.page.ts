@@ -1,5 +1,6 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { AdvanceService } from '../../core/api/advance.service';
@@ -10,7 +11,7 @@ import { AdvanceRequest } from '../../core/models';
 @Component({
   standalone: true,
   selector: 'app-advances-page',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule],
   template: `
   <div class="container-fluid p-0">
     <div class="row g-3">
@@ -87,6 +88,7 @@ import { AdvanceRequest } from '../../core/models';
                     <th>Motif</th>
                     <th>Statut</th>
                     <th class="text-end">Date</th>
+                    <th class="text-end"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -100,6 +102,9 @@ import { AdvanceRequest } from '../../core/models';
                       </span>
                     </td>
                     <td class="text-end text-muted small">{{a.createdAt | date:'short'}}</td>
+                    <td class="text-end">
+                      <a class="btn btn-sm btn-outline-primary" [routerLink]="['/advances/detail', a.id]">Détail</a>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -209,7 +214,7 @@ export class AdvancesPageComponent implements OnInit {
 
     this.api.decide(a.id, decision).subscribe({
       next: () => {
-        this.alerts.toast({ icon: 'success', title: 'Décision enregistrée' });
+        this.alerts.toast({ icon: 'success', title: 'Décision / Détail enregistrée' });
         this.reload();
       },
       error: () => this.alerts.toast({ icon: 'error', title: 'Erreur', text: 'Impossible d\'enregistrer la décision' })

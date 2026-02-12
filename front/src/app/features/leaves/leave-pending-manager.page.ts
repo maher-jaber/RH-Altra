@@ -39,9 +39,9 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
         <th mat-header-cell *matHeaderCellDef></th>
         <td mat-cell *matCellDef="let x">
           <div class="rowActions">
+            <a mat-stroked-button [routerLink]="['/leaves/detail', x.id]">Détail</a>
             <button mat-flat-button color="primary" (click)="approve(x)">Approuver</button>
-            <button mat-stroked-button (click)="sign(x)">Signer</button>
-            <button mat-stroked-button color="warn" (click)="reject(x)">Refuser</button>
+                        <button mat-stroked-button color="warn" (click)="reject(x)">Refuser</button>
           </div>
         </td>
       </ng-container>
@@ -58,6 +58,8 @@ export class LeavePendingManagerPage implements OnInit{
   constructor(private api:LeaveWorkflowService){}
   async ngOnInit(){ this.items.set((await this.api.pendingManager()).items||[]); }
   async approve(x:any){ await this.api.managerApprove(x.id, this.comment); await this.ngOnInit(); }
-  async sign(x:any){ const name=prompt('Nom du signataire', ''); const sig=prompt('Signature (base64 ou texte)', ''); await this.api.signManager(x.id,{name:name||undefined, signature:sig||undefined, comment:this.comment||undefined}); await this.ngOnInit(); }
-  async reject(x:any){ await this.api.reject(x.id, this.comment); await this.ngOnInit(); }
+  async reject(x:any){
+    await this.api.reject(x.id, this.comment);
+    await this.ngOnInit();
+  }
 }

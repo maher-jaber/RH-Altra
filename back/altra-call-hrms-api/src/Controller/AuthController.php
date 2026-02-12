@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Entity\PasswordResetToken;
+use App\Service\LeaveNotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -11,6 +12,8 @@ use Symfony\Component\Routing\Annotation\Route;
 
 class AuthController extends ApiBase
 {
+    public function __construct(private LeaveNotificationService $mailer) {}
+
     #[Route('/api/auth/login', name: 'api_auth_login', methods: ['POST'])]
     public function login(Request $request, EntityManagerInterface $em): JsonResponse
     {
@@ -46,8 +49,6 @@ class AuthController extends ApiBase
         $email = strtolower(trim((string)($data['email'] ?? '')));
 
         // Always return ok to avoid user enumeration
-        $devToken = null;
-
         if ($email !== '') {
             /** @var User|null $user */
             $user = $em->getRepository(User::class)->findOneBy(['email' => $email]);
@@ -59,12 +60,24 @@ class AuthController extends ApiBase
                     ->setExpiresAt((new \DateTimeImmutable())->modify('+1 hour'));
                 $em->persist($prt);
                 $em->flush();
-                // In dev we return token so you can test without email
-                $devToken = $token;
+
+                // Send reset link by email (never expose token in API response)
+                $frontend = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+                $link = rtrim($frontend, '/') . '/reset-password?token=' . urlencode($token);
+                $name = $user->getFullName() ?: $user->getEmail();
+                $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
+                    . '<h2 style="margin:0 0 12px 0">Réinitialisation du mot de passe</h2>'
+                    . '<p style="margin:0 0 12px 0">Bonjour ' . htmlspecialchars((string)$name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ',</p>'
+                    . '<p style="margin:0 0 12px 0">Cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe. Le lien expire dans 1 heure.</p>'
+                    . '<p style="margin:20px 0"><a href="' . htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Réinitialiser mon mot de passe</a></p>'
+                    . '<p style="opacity:.7;font-size:12px;margin-top:18px">Si vous n\'êtes pas à l\'origine de cette demande, vous pouvez ignorer cet email.</p>'
+                    . '</div>';
+
+                $this->mailer->notify((string) $user->getEmail(), 'Réinitialisation du mot de passe', $html);
             }
         }
 
-        return $this->jsonOk(['ok' => true, 'devToken' => $devToken]);
+        return $this->jsonOk(['ok' => true]);
     }
 
     #[Route('/api/auth/reset-password', name: 'api_auth_reset', methods: ['POST'])]

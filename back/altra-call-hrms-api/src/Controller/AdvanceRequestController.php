@@ -6,6 +6,7 @@ use App\Entity\AdvanceRequest;
 use App\Entity\Notification;
 use App\Message\PublishNotificationMessage;
 use App\Service\LeaveNotificationService;
+use App\Service\SettingsService;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -18,7 +19,8 @@ class AdvanceRequestController extends ApiBase
     public function __construct(
         private EntityManagerInterface $em,
         private MessageBusInterface $bus,
-        private LeaveNotificationService $mailer
+        private LeaveNotificationService $mailer,
+        private SettingsService $settings,
     ) {}
 
     private function getCurrentUser(Request $request): User
@@ -43,7 +45,30 @@ class AdvanceRequestController extends ApiBase
         return $this->jsonOk(array_map(fn(AdvanceRequest $a) => $this->serialize($a), $rows));
     }
 
-    #[Route('/api/advances', methods: ['POST'])]
+    
+    #[Route('/api/advances/{id}', requirements: ['id' => '\\d+'], methods: ['GET'])]
+    public function getOne(int $id, Request $request): JsonResponse
+    {
+        $token = $this->requireUser($request);
+        $me = $this->getCurrentUser($request);
+
+        /** @var AdvanceRequest|null $a */
+        $a = $this->em->getRepository(AdvanceRequest::class)->find($id);
+        if (!$a) return $this->json(['error' => 'not_found'], 404);
+
+        $isAdmin = in_array('ROLE_ADMIN', $token->roles ?? [], true);
+        $isOwner = $a->getUser()?->getId() === $me->getId();
+        $isManager = $a->getManager()?->getId() === $me->getId();
+
+        if (!$isAdmin && !$isOwner && !$isManager) {
+            return $this->json(['error' => 'forbidden'], 403);
+        }
+
+        return $this->jsonOk($this->serialize($a));
+    }
+
+
+#[Route('/api/advances', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $user = $this->getCurrentUser($request);
@@ -75,8 +100,10 @@ class AdvanceRequestController extends ApiBase
             $mgr = $a->getManager();
             $n = new Notification();
             $n->setUser($mgr);
-            $n->setTitle('Nouvelle demande d\'avance');
-            $n->setBody('Une demande d\'avance est en attente de validation.');
+            $n->setTitle('Avance · Nouvelle demande');
+            $n->setActionUrl('/advances/detail/' . $a->getId());
+            $n->setPayload($this->serialize($a));
+            $n->setBody('Montant: ' . $a->getAmount() . ' ' . $a->getCurrency() . ' · Statut: ' . $a->getStatus());
             $n->setType('ADVANCE');
             $this->em->persist($n);
             $this->em->flush();
@@ -87,15 +114,27 @@ class AdvanceRequestController extends ApiBase
                 body: (string)$n->getBody(),
                 type: $n->getType(),
                 notificationId: (string)$n->getId(),
-                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM)
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
             ));
 
             try {
-                $this->mailer->notify(
-                    $mgr->getEmail(),
-                    'Nouvelle demande d\'avance',
-                    '<p>Une demande d\'avance est en attente de validation.</p>'
-                );
+                $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+                $url = rtrim($base,'/') . '/advances/detail/' . $a->getId();
+                $emp = $a->getUser();
+                $empName = $emp ? ($emp->getFullName() ?: $emp->getEmail()) : '—';
+                $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
+                    . '<h2 style="margin:0 0 12px 0">Nouvelle demande d\'avance</h2>'
+                    . '<table style="border-collapse:collapse;width:100%;max-width:680px">'
+                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa;width:180px"><b>Employé</b></td><td style="padding:8px 10px;border:1px solid #eee">'.htmlspecialchars($empName,ENT_QUOTES).'</td></tr>'
+                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Montant</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getAmount().' '.$a->getCurrency().'</td></tr>'
+                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Statut</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getStatus().'</td></tr>'
+                    . '</table>'
+                    . '<p style="margin:20px 0"><a href="'.htmlspecialchars($url,ENT_QUOTES).'" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Ouvrir la demande</a></p>'
+                    . '<p style="opacity:.7;font-size:12px;margin-top:18px">ALTRA HRMS · Notification automatique</p>'
+                    . '</div>';
+                if($this->settings->canSendEmail($mgr,'ADVANCE')) { $this->mailer->notify($mgr->getEmail(), 'Nouvelle demande d\'avance', $html); }
             } catch (\Throwable) { /* best-effort */ }
         }
 
@@ -154,7 +193,9 @@ class AdvanceRequestController extends ApiBase
             $emp = $a->getUser();
             $n = new Notification();
             $n->setUser($emp);
-            $n->setTitle('Décision sur votre avance');
+            $n->setTitle('Avance · Décision');
+            $n->setActionUrl('/advances/detail/' . $a->getId());
+            $n->setPayload($this->serialize($a));
             $n->setBody($a->getStatus() === AdvanceRequest::STATUS_APPROVED ? 'Votre demande d\'avance a été approuvée.' : 'Votre demande d\'avance a été refusée.');
             $n->setType('ADVANCE');
             $this->em->persist($n);
@@ -166,15 +207,27 @@ class AdvanceRequestController extends ApiBase
                 body: (string)$n->getBody(),
                 type: $n->getType(),
                 notificationId: (string)$n->getId(),
-                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM)
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
             ));
 
             try {
-                $this->mailer->notify(
-                    $emp->getEmail(),
-                    'Décision sur votre avance',
-                    '<p>'.htmlspecialchars((string)$n->getBody()).'</p>'
-                );
+                $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+                $url = rtrim($base,'/') . '/advances/detail/' . $a->getId();
+                $emp = $a->getUser();
+                $empName = $emp ? ($emp->getFullName() ?: $emp->getEmail()) : '—';
+                $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
+                    . '<h2 style="margin:0 0 12px 0">Décision sur votre avance</h2>'
+                    . '<table style="border-collapse:collapse;width:100%;max-width:680px">'
+                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa;width:180px"><b>Employé</b></td><td style="padding:8px 10px;border:1px solid #eee">'.htmlspecialchars($empName,ENT_QUOTES).'</td></tr>'
+                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Montant</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getAmount().' '.$a->getCurrency().'</td></tr>'
+                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Statut</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getStatus().'</td></tr>'
+                    . '</table>'
+                    . '<p style="margin:20px 0"><a href="'.htmlspecialchars($url,ENT_QUOTES).'" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Ouvrir la demande</a></p>'
+                    . '<p style="opacity:.7;font-size:12px;margin-top:18px">ALTRA HRMS · Notification automatique</p>'
+                    . '</div>';
+                if($this->settings->canSendEmail($emp,'ADVANCE')) { $this->mailer->notify($emp->getEmail(), 'Décision sur votre avance', $html); }
             } catch (\Throwable) { /* best-effort */ }
         }
 

@@ -21,13 +21,16 @@ import { LeaveCalendarPage } from './features/leaves/leave-calendar.page';
 import { LeavePendingHrPage } from './features/leaves/leave-pending-hr.page';
 import { LeavePendingManagerPage } from './features/leaves/leave-pending-manager.page';
 import { LeaveCreatePage } from './features/leaves/leave-create.page';
+import { LeaveDetailPage } from './features/leaves/leave-detail.page';
 
 import { NotificationsPage } from './features/notifications/notifications.page';
+import { SettingsPage } from './features/settings/settings.page';
 
 import { AdminUsersPageComponent } from './features/admin/admin-users.page';
 import { AdminDepartmentsPage } from './features/admin/admin-departments.page';
 
 import { AdvancesPageComponent } from './features/advances/advances.page';
+import { AdvanceDetailPage } from './features/advances/advance-detail.page';
 import { ExitPermissionsPageComponent } from './features/exit-permissions/exit-permissions.page';
 import { DailyReportsPageComponent } from './features/daily-reports/daily-reports.page';
 import { ProfilePage } from './features/profile/profile.page';
@@ -49,6 +52,7 @@ export const APP_ROUTES: Routes = [
       // Congés (module principal)
       { path: 'leaves', component: LeaveDashboardPage, title: 'Congés' },
       { path: 'leaves/create', component: LeaveCreatePage, title: 'Nouvelle demande de congé' },
+      { path: 'leaves/detail/:id', component: LeaveDetailPage, title: 'Détail congé' },
       { path: 'leaves/my', component: LeaveMyPageComponent, title: 'Mes demandes de congé' },
       { path: 'leaves/pending-manager', component: LeavePendingManagerPage, title: 'Validation congés · Manager' },
       { path: 'leaves/pending-hr', component: LeavePendingHrPage, canActivate: [adminGuard], title: 'Validation congés · RH' },
@@ -61,10 +65,12 @@ export const APP_ROUTES: Routes = [
       { path: 'leave/my', component: LeaveMyPageComponent, title: 'Mes demandes de congé' },
 
       { path: 'advances', component: AdvancesPageComponent, title: 'Avances / Acompte' },
+      { path: 'advances/detail/:id', component: AdvanceDetailPage, title: 'Détail avance' },
       { path: 'exit-permissions', component: ExitPermissionsPageComponent, title: 'Autorisations de sortie' },
       { path: 'daily-reports', component: DailyReportsPageComponent, title: 'Compte-rendu journalier' },
 
       { path: 'notifications', component: NotificationsPage, title: 'Notifications' },
+      { path: 'settings', component: SettingsPage, canActivate: [adminGuard], title: 'Paramètres' },
 
       { path: 'profile', component: ProfilePage, title: 'Mon profil' },
 
