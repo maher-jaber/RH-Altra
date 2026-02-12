@@ -14,17 +14,58 @@ use Symfony\Component\Routing\Annotation\Route;
 
 class LeaveWorkflowController extends ApiBase {
 
-    #[Route('/api/leaves/pending/manager', methods:['GET'])]
+        #[Route('/api/leaves/pending/manager', methods:['GET'])]
     public function pendingManager(Request $r, EntityManagerInterface $em): JsonResponse {
         $u = $this->requireDbUser($r, $em);
-        $items = $em->getRepository(LeaveRequest::class)->findBy([
-            'status' => LeaveRequest::STATUS_SUBMITTED,
-            'manager' => $u
-        ], ['id' => 'DESC']);
-        return $this->jsonOk(['items' => array_map([$this,'serialize'], $items)]);
+        $pg = $this->parsePagination($r);
+
+        if (!$pg['enabled']) {
+            $items = $em->getRepository(LeaveRequest::class)->findBy([
+                'status' => LeaveRequest::STATUS_SUBMITTED,
+                'manager' => $u
+            ], ['id' => 'DESC']);
+            return $this->jsonOk(['items' => array_map([$this,'serialize'], $items)]);
+        }
+
+        // Eager-load relations to avoid N+1 queries when serializing (user/manager/type)
+        $qb = $em->createQueryBuilder()
+            ->select('lr, t, u, m')
+            ->from(LeaveRequest::class, 'lr')
+            ->leftJoin('lr.type', 't')->addSelect('t')
+            ->leftJoin('lr.user', 'u')->addSelect('u')
+            ->leftJoin('lr.manager', 'm')->addSelect('m')
+            ->where('lr.status = :st')
+            ->andWhere('lr.manager = :m')
+            ->setParameter('st', LeaveRequest::STATUS_SUBMITTED)
+            ->setParameter('m', $u)
+            ->orderBy('lr.id', 'DESC')
+            ->setFirstResult($pg['offset'])
+            ->setMaxResults($pg['limit']);
+
+        $items = $qb->getQuery()->getResult();
+
+        $countQb = $em->createQueryBuilder()
+            ->select('COUNT(lr2.id)')
+            ->from(LeaveRequest::class, 'lr2')
+            ->where('lr2.status = :st')
+            ->andWhere('lr2.manager = :m')
+            ->setParameter('st', LeaveRequest::STATUS_SUBMITTED)
+            ->setParameter('m', $u);
+
+        $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
+        return $this->jsonOk([
+            'items' => array_map([$this,'serialize'], $items),
+            'meta' => [
+                'page' => $pg['page'],
+                'limit' => $pg['limit'],
+                'total' => $total,
+                'pages' => (int)ceil($total / max(1,$pg['limit'])),
+            ]
+        ]);
     }
 
-    #[Route('/api/leaves/{id}/manager-approve', methods:['POST'])]
+        #[Route('/api/leaves/{id}/manager-approve', methods:['POST'])]
     public function managerApprove(
         string $id,
         Request $r,
@@ -75,14 +116,53 @@ class LeaveWorkflowController extends ApiBase {
         return $this->jsonOk(['status'=>$lr->getStatus()]);
     }
 
-    #[Route('/api/leaves/pending/hr', methods:['GET'])]
+        #[Route('/api/leaves/pending/hr', methods:['GET'])]
     public function pendingHr(Request $r, EntityManagerInterface $em): JsonResponse {
-        $this->requireRole($r,'ROLE_ADMIN');
-        $items=$em->getRepository(LeaveRequest::class)->findBy(['status'=>LeaveRequest::STATUS_MANAGER_APPROVED], ['id'=>'DESC']);
-        return $this->jsonOk(['items'=>array_map([$this,'serialize'], $items)]);
+        $this->requireRole($r, 'ROLE_ADMIN');
+        $pg = $this->parsePagination($r);
+
+        if (!$pg['enabled']) {
+            $items = $em->getRepository(LeaveRequest::class)->findBy([
+                'status' => LeaveRequest::STATUS_MANAGER_APPROVED,
+            ], ['id' => 'DESC']);
+            return $this->jsonOk(['items' => array_map([$this,'serialize'], $items)]);
+        }
+
+        // Eager-load relations to avoid N+1 queries when serializing (user/manager/type)
+        $qb = $em->createQueryBuilder()
+            ->select('lr, t, u, m')
+            ->from(LeaveRequest::class, 'lr')
+            ->leftJoin('lr.type', 't')->addSelect('t')
+            ->leftJoin('lr.user', 'u')->addSelect('u')
+            ->leftJoin('lr.manager', 'm')->addSelect('m')
+            ->where('lr.status = :st')
+            ->setParameter('st', LeaveRequest::STATUS_MANAGER_APPROVED)
+            ->orderBy('lr.id', 'DESC')
+            ->setFirstResult($pg['offset'])
+            ->setMaxResults($pg['limit']);
+
+        $items = $qb->getQuery()->getResult();
+
+        $countQb = $em->createQueryBuilder()
+            ->select('COUNT(lr2.id)')
+            ->from(LeaveRequest::class, 'lr2')
+            ->where('lr2.status = :st')
+            ->setParameter('st', LeaveRequest::STATUS_MANAGER_APPROVED);
+
+        $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
+        return $this->jsonOk([
+            'items' => array_map([$this,'serialize'], $items),
+            'meta' => [
+                'page' => $pg['page'],
+                'limit' => $pg['limit'],
+                'total' => $total,
+                'pages' => (int)ceil($total / max(1,$pg['limit'])),
+            ]
+        ]);
     }
 
-    #[Route('/api/leaves/{id}/hr-approve', methods:['POST'])]
+        #[Route('/api/leaves/{id}/hr-approve', methods:['POST'])]
     public function hrApprove(
         string $id,
         Request $r,

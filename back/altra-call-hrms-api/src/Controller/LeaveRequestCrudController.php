@@ -16,16 +16,52 @@ use Symfony\Component\Routing\Annotation\Route;
 
 class LeaveRequestCrudController extends ApiBase
 {
-    #[Route('/api/leaves/my', methods:['GET'])]
+        #[Route('/api/leaves/my', methods:['GET'])]
     public function my(Request $r, EntityManagerInterface $em): JsonResponse
     {
         $u = $this->requireDbUser($r, $em);
-        $items = $em->getRepository(LeaveRequest::class)->findBy(['user' => $u], ['id' => 'DESC']);
-        return $this->jsonOk(['items' => array_map([$this,'serialize'], $items)]);
+        $pg = $this->parsePagination($r);
+
+        if (!$pg['enabled']) {
+            $items = $em->getRepository(LeaveRequest::class)->findBy(['user' => $u], ['id' => 'DESC']);
+            return $this->jsonOk(['items' => array_map([$this,'serialize'], $items)]);
+        }
+
+        // Eager-load relations to avoid N+1 queries when serializing (user/manager/type)
+        $qb = $em->createQueryBuilder()
+            ->select('lr, t, u2, m')
+            ->from(LeaveRequest::class, 'lr')
+            ->leftJoin('lr.type', 't')->addSelect('t')
+            ->leftJoin('lr.user', 'u2')->addSelect('u2')
+            ->leftJoin('lr.manager', 'm')->addSelect('m')
+            ->where('lr.user = :u')
+            ->setParameter('u', $u)
+            ->orderBy('lr.id', 'DESC')
+            ->setFirstResult($pg['offset'])
+            ->setMaxResults($pg['limit']);
+
+        $items = $qb->getQuery()->getResult();
+
+        $countQb = $em->createQueryBuilder()
+            ->select('COUNT(lr2.id)')
+            ->from(LeaveRequest::class, 'lr2')
+            ->where('lr2.user = :u')
+            ->setParameter('u', $u);
+
+        $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
+        return $this->jsonOk([
+            'items' => array_map([$this,'serialize'], $items),
+            'meta' => [
+                'page' => $pg['page'],
+                'limit' => $pg['limit'],
+                'total' => $total,
+                'pages' => (int)ceil($total / max(1,$pg['limit'])),
+            ]
+        ]);
     }
 
-    
-    #[Route('/api/leaves/{id}', methods:['GET'])]
+       #[Route('/api/leaves/{id}', methods:['GET'])]
     public function getOne(string $id, Request $r, EntityManagerInterface $em): JsonResponse
     {
         $token = $this->requireUser($r);

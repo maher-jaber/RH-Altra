@@ -2,27 +2,34 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { ExitPermission } from '../models';
+import { map } from 'rxjs/operators';   // ✅ ajouter
 
 @Injectable({ providedIn: 'root' })
 export class ExitPermissionService {
   constructor(private http: HttpClient) {}
 
   my() {
-    return this.http.get<ExitPermission[]>(`${environment.apiBaseUrl}/api/exit-permissions/my`);
+    return this.http.get<any>(`${environment.apiBaseUrl}/api/exit-permissions/my`).pipe(
+      map(res => Array.isArray(res) ? res : (res?.items ?? []))
+    );
+  }
+
+  pending() {
+    return this.http.get<any>(`${environment.apiBaseUrl}/api/exit-permissions/pending`).pipe(
+      map(res => Array.isArray(res) ? res : (res?.items ?? []))
+    );
   }
 
   create(payload: { startAt: string; endAt: string; reason?: string | null; status?: 'DRAFT' | 'SUBMITTED' }) {
     return this.http.post<ExitPermission>(`${environment.apiBaseUrl}/api/exit-permissions`, payload);
   }
 
-  pending() {
-    return this.http.get<ExitPermission[]>(`${environment.apiBaseUrl}/api/exit-permissions/pending`);
-  }
-
   decide(id: number, decision: 'APPROVE' | 'REJECT') {
     return this.http.post<ExitPermission>(`${environment.apiBaseUrl}/api/exit-permissions/${id}/decision`, { decision });
   }
+
   getOne(id: number) {
     return this.http.get<ExitPermission>(`${environment.apiBaseUrl}/api/exit-permissions/${id}`);
   }
 }
+

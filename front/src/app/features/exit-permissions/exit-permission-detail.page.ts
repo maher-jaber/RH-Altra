@@ -1,105 +1,82 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
-import { firstValueFrom } from 'rxjs';
-
-import { ExitPermissionService } from '../../core/api/exit-permission.service';
-import { AuthService } from '../../core/auth.service';
 
 @Component({
   standalone: true,
   selector: 'app-exit-permission-detail',
-  imports: [CommonModule, RouterModule, MatCardModule, MatButtonModule],
+  imports: [CommonModule, RouterModule, MatTabsModule, MatCardModule, MatButtonModule],
   template: `
-    <div class="d-flex align-items-center justify-content-between">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
       <div>
-        <h2 style="margin:0">Détail autorisation de sortie</h2>
-        <div style="opacity:.7" *ngIf="item()">ID: {{item()?.id}}</div>
+        <h2 style="margin:0">Autorisation de sortie</h2>
+        <div class="muted">Détails, audit et actions.</div>
       </div>
       <a mat-stroked-button routerLink="/exit-permissions">Retour</a>
     </div>
 
     <div style="height:12px"></div>
 
-    <mat-card *ngIf="item()">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div style="opacity:.9"><b>Du:</b> {{item()?.startAt | date:'short'}}</div>
-          <div style="opacity:.9"><b>Au:</b> {{item()?.endAt | date:'short'}}</div>
-          <div style="opacity:.85">Statut: <b>{{item()?.status}}</b></div>
-          <div style="opacity:.85" *ngIf="item()?.reason">Motif: {{item()?.reason}}</div>
-        </div>
-        <span class="badge bg-light text-dark" style="border:1px solid #eee">EXIT</span>
-      </div>
+    <mat-card class="shell">
+      <mat-tab-group (selectedIndexChange)="onTab($event)">
+        <mat-tab label="Résumé">
+          <ng-template matTabContent>
+            <ng-container *ngIf="cmp() as C; else loading">
+              <ng-container *ngComponentOutlet="C; inputs: { exitId: exitId() }"></ng-container>
+            </ng-container>
+          </ng-template>
+        </mat-tab>
 
-      <div style="height:10px"></div>
+        <mat-tab label="Actions">
+          <ng-template matTabContent>
+            <ng-container *ngIf="cmp() as C; else loading">
+              <ng-container *ngComponentOutlet="C; inputs: { exitId: exitId() }"></ng-container>
+            </ng-container>
+          </ng-template>
+        </mat-tab>
 
-      <div *ngIf="item()?.user" style="opacity:.9">
-        <b>Employé:</b> {{item()?.user?.fullName || item()?.user?.email}}
-      </div>
-      <div *ngIf="item()?.manager" style="opacity:.9">
-        <b>Manager:</b> {{item()?.manager?.fullName || item()?.manager?.email}}
-      </div>
-
-      <div style="height:14px"></div>
-
-      <div class="d-flex flex-wrap gap-2" *ngIf="canAct()">
-        <button mat-raised-button color="primary" (click)="decide('APPROVE')" [disabled]="loading()">Approuver</button>
-        <button mat-stroked-button color="warn" (click)="decide('REJECT')" [disabled]="loading()">Refuser</button>
-      </div>
-
-      <div *ngIf="msg()" style="margin-top:10px; opacity:.85">{{msg()}}</div>
-
-      <div *ngIf="!canAct()" style="opacity:.7;margin-top:10px">
-        Aucune action disponible pour vous sur cette demande.
-      </div>
+        <mat-tab label="Audit">
+          <ng-template matTabContent>
+            <ng-container *ngIf="cmp() as C; else loading">
+              <ng-container *ngComponentOutlet="C; inputs: { exitId: exitId() }"></ng-container>
+            </ng-container>
+          </ng-template>
+        </mat-tab>
+      </mat-tab-group>
     </mat-card>
 
-    <div *ngIf="!item()" style="opacity:.7;margin-top:16px">Chargement...</div>
+    <ng-template #loading>
+      <div class="muted p-2">Chargement...</div>
+    </ng-template>
   `,
-  styles: [`mat-card{border-radius:16px;padding:14px}`]
+  styles: [
+    `.shell{border-radius:18px;padding:8px}`,
+    `.muted{opacity:.75;font-size:12px}`
+  ]
 })
 export class ExitPermissionDetailPage implements OnInit {
-  item = signal<any | null>(null);
-  loading = signal(false);
-  msg = signal('');
+  exitId = signal<number>(0);
+  cmp = signal<any>(null);
 
-  meId = computed(() => this.auth.me()?.id);
+  private loaders = [
+    () => import('./exit-permission-detail-tabs/exit-overview.tab').then(m => m.ExitOverviewTab),
+    () => import('./exit-permission-detail-tabs/exit-actions.tab').then(m => m.ExitActionsTab),
+    () => import('./exit-permission-detail-tabs/exit-audit.tab').then(m => m.ExitAuditTab),
+  ];
 
-  constructor(private route: ActivatedRoute, private api: ExitPermissionService, private auth: AuthService) {}
+  constructor(private route: ActivatedRoute) {}
 
   async ngOnInit() {
-    const id = Number(this.route.snapshot.paramMap.get('id') || '0');
-    await this.load(id);
+    this.exitId.set(Number(this.route.snapshot.paramMap.get('id') || '0'));
+    await this.onTab(0);
   }
 
-  canAct() {
-    const e = this.item();
-    if (!e) return false;
-    const isAdmin = this.auth.hasRole('ROLE_ADMIN');
-    const isManager = this.auth.hasRole('ROLE_SUPERIOR') && (e.manager?.id === this.meId());
-    return (isAdmin || isManager) && e.status === 'SUBMITTED';
-  }
-
-  private async load(id: number) {
-    this.item.set(null);
-    const e = await firstValueFrom(this.api.getOne(id));
-    this.item.set(e);
-  }
-
-  async decide(d: 'APPROVE' | 'REJECT') {
-    const e = this.item();
-    if (!e) return;
-    this.loading.set(true);
-    this.msg.set('');
-    try {
-      await firstValueFrom(this.api.decide(e.id, d));
-      await this.load(e.id);
-      this.msg.set('Action effectuée.');
-    } finally {
-      this.loading.set(false);
-    }
+  async onTab(i: number) {
+    this.cmp.set(null);
+    const C = await this.loaders[i]();
+    this.cmp.set(C);
   }
 }

@@ -3,13 +3,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { SettingsApiService, AppSettings } from '../../core/api/settings-api.service';
+import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { AlertService } from '../../core/ui/alert.service';
 
 @Component({
   standalone: true,
   selector: 'app-settings',
-  imports: [CommonModule, FormsModule, MatCheckboxModule],
+  imports: [CommonModule, FormsModule, MatCheckboxModule, RouterModule],
   template: `
   <div class="d-flex align-items-center justify-content-between">
     <h2 style="margin:0">Paramètres</h2>
@@ -21,6 +22,19 @@ import { AlertService } from '../../core/ui/alert.service';
   </div>
 
   <div *ngIf="isAdmin()">
+    <div class="card mt-3 p-3" style="border-radius:16px">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+          <h5 class="mb-1">Outils</h5>
+          <div class="text-muted" style="font-size:13px">Accès rapide à des écrans d'administration.</div>
+        </div>
+        <a class="btn btn-outline-primary" routerLink="/admin/team-calendar">
+          <i class="bi bi-calendar3 me-1"></i>
+          Calendrier équipe
+        </a>
+      </div>
+    </div>
+
     <div class="card mt-3 p-3" style="border-radius:16px">
       <h5 class="mb-2">Emails de notification</h5>
       <div class="text-muted" style="font-size:13px">Activer / désactiver les emails par type de personne.</div>

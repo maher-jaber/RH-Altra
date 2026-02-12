@@ -35,6 +35,12 @@ class AdvanceRequest
     #[ORM\Column(type:'string', length:30)]
     private string $status=self::STATUS_DRAFT;
 
+    #[ORM\Column(name:'period_year', type:'integer')]
+    private int $periodYear;
+
+    #[ORM\Column(name:'period_month', type:'integer')]
+    private int $periodMonth;
+
     #[ORM\Column(type:'datetime')]
     private \DateTimeInterface $createdAt;
 
@@ -42,8 +48,11 @@ class AdvanceRequest
     private \DateTimeInterface $updatedAt;
 
     public function __construct(){
-        $this->createdAt = new \DateTimeImmutable();
-        $this->updatedAt = new \DateTimeImmutable();
+        $now = new \DateTimeImmutable();
+        $this->createdAt = $now;
+        $this->updatedAt = $now;
+        $this->periodYear = (int)$now->format('Y');
+        $this->periodMonth = (int)$now->format('n');
     }
 
     public function getId(): ?int { return $this->id; }
@@ -59,8 +68,16 @@ class AdvanceRequest
     public function setReason(?string $r): self { $this->reason=$r; return $this; }
     public function getStatus(): string { return $this->status; }
     public function setStatus(string $s): self { $this->status=$s; return $this; }
+
+    public function getPeriodYear(): int { return $this->periodYear; }
+    public function setPeriodYear(int $y): self { $this->periodYear = $y; return $this; }
+    public function getPeriodMonth(): int { return $this->periodMonth; }
+    public function setPeriodMonth(int $m): self { $this->periodMonth = $m; return $this; }
+    public function setPeriod(int $year, int $month): self { $this->periodYear=$year; $this->periodMonth=$month; return $this; }
+
     public function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }
 
-public function getCreatedAt(): \DateTimeInterface { return $this->createdAt; }
+    public function getCreatedAt(): \DateTimeInterface { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeInterface { return $this->updatedAt; }
 }
+

@@ -9,6 +9,12 @@ import { Observable, map } from 'rxjs';
 export class NotificationService {
   constructor(private http: HttpClient, private zone: NgZone) {}
 
+  listPaged(page = 1, limit = 10): Observable<{ items: NotificationItem[]; meta?: any }> {
+    return this.http.get<{ items: NotificationItem[]; meta?: any }>(
+      `${environment.apiBaseUrl}/api/notifications?page=${page}&limit=${limit}`
+    );
+  }
+
   list(): Observable<NotificationItem[]> {
     // API returns { items: NotificationItem[] }
     return this.http

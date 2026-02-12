@@ -35,6 +35,20 @@ type UiRole = 'ROLE_EMPLOYEE' | 'ROLE_MANAGER' | 'ROLE_HR' | 'ROLE_ADMIN';
         </div>
 
         <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <input class="form-control form-control-sm" style="width:240px" placeholder="Rechercher email / nom" [value]="q()" (input)="q.set(($any($event.target).value||'').trim())" />
+              <button class="btn btn-outline-secondary btn-sm" (click)="search()"><i class="bi bi-search"></i><span class="ms-1">Chercher</span></button>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <select class="form-select form-select-sm" style="width:110px" [value]="pageSize()" (change)="setPageSize($any($event.target).value)">
+                <option [value]="5">5</option><option [value]="10">10</option><option [value]="25">25</option><option [value]="50">50</option>
+              </select>
+              <div class="muted">Total: {{total()}}</div>
+              <button class="btn btn-outline-secondary btn-sm" (click)="prev()" [disabled]="pageIndex()===0">Précédent</button>
+              <button class="btn btn-outline-secondary btn-sm" (click)="next()" [disabled]="(pageIndex()+1)*pageSize()>=total()">Suivant</button>
+            </div>
+          </div>
           <div class="table-responsive">
             <table class="table align-middle">
               <thead>
@@ -82,6 +96,20 @@ type UiRole = 'ROLE_EMPLOYEE' | 'ROLE_MANAGER' | 'ROLE_HR' | 'ROLE_ADMIN';
         </div>
 
         <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <input class="form-control form-control-sm" style="width:240px" placeholder="Rechercher email / nom" [value]="q()" (input)="q.set(($any($event.target).value||'').trim())" />
+              <button class="btn btn-outline-secondary btn-sm" (click)="search()"><i class="bi bi-search"></i><span class="ms-1">Chercher</span></button>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <select class="form-select form-select-sm" style="width:110px" [value]="pageSize()" (change)="setPageSize($any($event.target).value)">
+                <option [value]="5">5</option><option [value]="10">10</option><option [value]="25">25</option><option [value]="50">50</option>
+              </select>
+              <div class="muted">Total: {{total()}}</div>
+              <button class="btn btn-outline-secondary btn-sm" (click)="prev()" [disabled]="pageIndex()===0">Précédent</button>
+              <button class="btn btn-outline-secondary btn-sm" (click)="next()" [disabled]="(pageIndex()+1)*pageSize()>=total()">Suivant</button>
+            </div>
+          </div>
           <form [formGroup]="form" (ngSubmit)="save()">
             <div class="mb-2">
               <label class="form-label">Email</label>
@@ -97,6 +125,16 @@ type UiRole = 'ROLE_EMPLOYEE' | 'ROLE_MANAGER' | 'ROLE_HR' | 'ROLE_ADMIN';
                 <span class="input-group-text"><i class="bi bi-person"></i></span>
                 <input class="form-control" formControlName="fullName" placeholder="Prénom Nom" />
               </div>
+            </div>
+
+
+            <div class="mb-2">
+              <label class="form-label">Salaire net (DT)</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-cash-stack"></i></span>
+                <input class="form-control" type="number" step="0.01" min="0" formControlName="netSalary" placeholder="Ex: 1500" />
+              </div>
+              <div class="muted mt-1">Utilisé pour calculer le plafond d'avance (40%).</div>
             </div>
 
             <div class="mb-2">
@@ -158,6 +196,10 @@ type UiRole = 'ROLE_EMPLOYEE' | 'ROLE_MANAGER' | 'ROLE_HR' | 'ROLE_ADMIN';
 })
 export class AdminUsersPageComponent implements OnInit {
   users = signal<AdminUser[]>([]);
+  pageIndex = signal(0);
+  pageSize = signal(10);
+  total = signal(0);
+  q = signal('');
   departments = signal<Department[]>([]);
   editingId = signal<string | null>(null);
 
@@ -167,6 +209,7 @@ export class AdminUsersPageComponent implements OnInit {
     manager2Id: [''],
     email: ['', [Validators.required, Validators.email]],
     fullName: [''],
+    netSalary: [null as number | null],
     role: ['ROLE_EMPLOYEE' as UiRole],
     password: [''],
   });
@@ -182,10 +225,22 @@ export class AdminUsersPageComponent implements OnInit {
     await this.reload();
   }
 
+  async prev(){ if(this.pageIndex()===0) return; this.pageIndex.set(this.pageIndex()-1); await this.reload(); }
+
+  async next(){ if((this.pageIndex()+1)*this.pageSize()>=this.total()) return; this.pageIndex.set(this.pageIndex()+1); await this.reload(); }
+
+  async setPageSize(v:any){ this.pageSize.set(parseInt(v,10)||10); this.pageIndex.set(0); await this.reload(); }
+
+  async search(){ this.pageIndex.set(0); await this.reload(); }
+
   async reload(): Promise<void> {
     try {
-      const [res, deps] = await Promise.all([this.api.list(), this.deptApi.list()]);
+      const [res, deps] = await Promise.all([
+        this.api.list(this.pageIndex()+1, this.pageSize(), this.q()||undefined),
+        this.deptApi.list(1, 200)
+      ]);
       this.users.set(res.items || []);
+      this.total.set(res.meta?.total ?? (res.items?.length||0));
       this.departments.set(deps.items || []);
     } catch {
       this.alert.toast({ title: 'Impossible de charger les utilisateurs', icon: 'error' });
@@ -198,6 +253,7 @@ export class AdminUsersPageComponent implements OnInit {
     this.form.patchValue({
       email: u.email,
       fullName: u.fullName,
+      netSalary: (u as any).netSalary ?? null,
       role,
       departmentId: (u.department as any)?.id || '',
       managerId: (u.manager as any)?.id || '',
@@ -211,6 +267,7 @@ export class AdminUsersPageComponent implements OnInit {
     this.form.reset({
       email: '',
       fullName: '',
+      netSalary: null,
       role: 'ROLE_EMPLOYEE',
       departmentId: '',
       managerId: '',
@@ -232,6 +289,7 @@ export class AdminUsersPageComponent implements OnInit {
       departmentId: val.departmentId || null,
       managerId: val.managerId || null,
       manager2Id: val.manager2Id || null,
+      netSalary: val.netSalary === null || val.netSalary === undefined || (val.netSalary as any)==='' ? null : Number(val.netSalary),
     };
 
     try {
@@ -244,6 +302,7 @@ export class AdminUsersPageComponent implements OnInit {
           departmentId: payload.departmentId,
           managerId: payload.managerId,
           manager2Id: payload.manager2Id,
+          netSalary: payload.netSalary,
         };
         if (payload.password) updatePayload.password = payload.password;
         await this.api.update(id, updatePayload);

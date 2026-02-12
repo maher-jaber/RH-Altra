@@ -1,4 +1,4 @@
-export type Role = 'ROLE_ADMIN' | 'ROLE_SUPERIOR' | 'ROLE_EMPLOYEE';
+export type Role = 'ROLE_ADMIN' | 'ROLE_HR' | 'ROLE_SUPERIOR' | 'ROLE_EMPLOYEE';
 
 export interface MeResponse {
   id: string;
@@ -36,6 +36,7 @@ export interface AdminUser {
   fullName: string;
   roles: Role[];
   apiKey: string;
+  netSalary?: number | null;
   department?: Department | null;
   manager?: UserMini | null;
   manager2?: UserMini | null;
@@ -53,7 +54,10 @@ export interface AdvanceRequest {
   currency: string;
   reason?: string | null;
   status: string;
+  periodYear?: number;
+  periodMonth?: number;
   createdAt: string;
+  updatedAt?: string;
   user: UserMini;
   manager?: UserMini | null;
 }
@@ -64,13 +68,24 @@ export interface ExitPermission {
   endAt: string;
   reason?: string | null;
   status: string;
+  periodYear?: number;
+  periodMonth?: number;
   createdAt: string;
+  updatedAt?: string;
   user: UserMini;
   manager?: UserMini | null;
 }
 
 export interface DailyReport {
   id: number;
+  // New UI fields (preferred)
+  date?: string; // YYYY-MM-DD
+  tasks?: string;
+  hours?: number | null;
+  blockers?: string | null;
+  nextDayPlan?: string | null;
+
+  // Legacy fields kept for compatibility
   day: string; // YYYY-MM-DD
   content: string;
   createdAt: string;

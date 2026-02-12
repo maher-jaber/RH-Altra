@@ -1,12 +1,16 @@
 import { Component, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth.service';
+import { LoadingOverlayComponent } from './core/ui/loading-overlay.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet],
-  template: `<router-outlet />`
+  imports: [RouterOutlet, LoadingOverlayComponent],
+  template: `
+    <router-outlet />
+    <app-loading-overlay />
+  `
 })
 export class AppComponent implements OnInit {
   constructor(private auth: AuthService) {}

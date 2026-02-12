@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, computed, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,6 +10,17 @@ import { NotificationStoreService } from '../../core/api/notification-store.serv
   selector:'app-notifications',
   imports:[CommonModule, RouterModule, DatePipe, MatCardModule, MatButtonModule],
   template:`
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+      <div class="small text-muted">Total: {{total()}}</div>
+      <div class="d-flex align-items-center gap-2">
+        <select class="form-select form-select-sm" style="width:110px" [value]="pageSize()" (change)="setPageSize($any($event.target).value)">
+          <option [value]="5">5</option><option [value]="10">10</option><option [value]="25">25</option><option [value]="50">50</option>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" (click)="prev()" [disabled]="pageIndex()===0">Précédent</button>
+        <button class="btn btn-outline-secondary btn-sm" (click)="next()" [disabled]="(pageIndex()+1)*pageSize() >= total()">Suivant</button>
+      </div>
+    </div>
+
     <div class="d-flex align-items-center justify-content-between">
       <h2 style="margin:0">Notifications</h2>
       <button mat-stroked-button (click)="reload()">Rafraîchir</button>
@@ -57,9 +68,27 @@ import { NotificationStoreService } from '../../core/api/notification-store.serv
   styles:[`mat-card{border-radius:16px;margin-bottom:10px;padding:12px}`]
 })
 export class NotificationsPage implements OnInit{
-  items=this.store.items;
+  pageIndex = this.store.pageIndex;
+  pageSize = this.store.pageSize;
+  total = this.store.total;
+  items = this.store.items;
+
   constructor(public store:NotificationStoreService, private router:Router){}
   ngOnInit(){ this.store.start(); }
+
+  setPageSize(v:any){
+    const ps = parseInt(v,10) || 10;
+    this.store.setPage(0, ps);
+  }
+  prev(){
+    if(this.pageIndex()===0) return;
+    this.store.setPage(this.pageIndex()-1);
+  }
+  next(){
+    if((this.pageIndex()+1)*this.pageSize() >= this.total()) return;
+    this.store.setPage(this.pageIndex()+1);
+  }
+
   reload(){ this.store.refresh(); }
   async read(n:any){ await this.store.markRead(n.id); }
   async open(n:any){

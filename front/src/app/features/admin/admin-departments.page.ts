@@ -29,6 +29,20 @@ import { AlertService } from '../../core/ui/alert.service';
       </div>
 
       <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <input class="form-control form-control-sm" style="width:240px" placeholder="Rechercher département" [value]="q()" (input)="q.set(($any($event.target).value||'').trim())" />
+              <button class="btn btn-outline-secondary btn-sm" (click)="search()"><i class="bi bi-search"></i><span class="ms-1">Chercher</span></button>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <select class="form-select form-select-sm" style="width:110px" [value]="pageSize()" (change)="setPageSize($any($event.target).value)">
+                <option [value]="5">5</option><option [value]="10">10</option><option [value]="25">25</option><option [value]="50">50</option>
+              </select>
+              <div class="muted">Total: {{total()}}</div>
+              <button class="btn btn-outline-secondary btn-sm" (click)="prev()" [disabled]="pageIndex()===0">Précédent</button>
+              <button class="btn btn-outline-secondary btn-sm" (click)="next()" [disabled]="(pageIndex()+1)*pageSize()>=total()">Suivant</button>
+            </div>
+          </div>
         <div class="row g-2 align-items-end mb-3">
           <div class="col-12 col-lg-6">
             <label class="form-label">{{ editingId ? 'Renommer un département' : 'Nouveau département' }}</label>
@@ -88,16 +102,45 @@ export class AdminDepartmentsPage implements OnInit {
   items = signal<any[]>([]);
   name = '';
   editingId: string | null = null;
+  // ✅ pagination + search
+  q = signal<string>('');
+  pageIndex = signal<number>(0);
+  pageSize = signal<number>(10);
+  total = signal<number>(0);
 
   constructor(private api: DepartmentService, private alert: AlertService) {}
 
   async ngOnInit() {
     await this.reload();
   }
+setPageSize(v: any) {
+    const n = parseInt(v, 10) || 10;
+    this.pageSize.set(n);
+    this.pageIndex.set(0);
+    this.reload();
+  }
+
+  search() {
+    this.pageIndex.set(0);
+    this.reload();
+  }
+
+  prev() {
+    if (this.pageIndex() === 0) return;
+    this.pageIndex.set(this.pageIndex() - 1);
+    this.reload();
+  }
+
+  next() {
+    if ((this.pageIndex() + 1) * this.pageSize() >= this.total()) return;
+    this.pageIndex.set(this.pageIndex() + 1);
+    this.reload();
+  }
 
   async reload() {
-    const res = await this.api.list();
+    const res = await this.api.list(this.pageIndex()+1, this.pageSize(), this.q() || undefined);
     this.items.set(res.items || []);
+    this.total.set(res.meta?.total ?? (res.items?.length || 0));
   }
 
   edit(d: any) {

@@ -28,7 +28,17 @@ import { AdvanceRequest } from '../../core/models';
           </div>
           <div class="card-body">
             <form [formGroup]="form" (ngSubmit)="submit()" class="vstack gap-3">
+              
               <div>
+                <label class="form-label">Mois / Année</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-calendar3"></i></span>
+                  <input class="form-control" type="month" formControlName="period" [min]="currentPeriod" [max]="currentPeriod" [disabled]="true" />
+                </div>
+                <div class="form-text">Règle: l'avance se fait uniquement pour le mois actuel ({{currentPeriod}}).</div>
+              </div>
+
+<div>
                 <label class="form-label">Montant (DT)</label>
                 <div class="input-group">
                   <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
@@ -85,6 +95,7 @@ import { AdvanceRequest } from '../../core/models';
                   <tr>
                     <th>#</th>
                     <th>Montant</th>
+                    <th>Période</th>
                     <th>Motif</th>
                     <th>Statut</th>
                     <th class="text-end">Date</th>
@@ -95,6 +106,7 @@ import { AdvanceRequest } from '../../core/models';
                   <tr *ngFor="let a of my()">
                     <td class="fw-semibold">{{a.id}}</td>
                     <td>{{a.amount}} {{a.currency}}</td>
+                    <td class="text-muted small">{{ formatPeriod(a) }}</td>
                     <td class="text-truncate" style="max-width: 280px">{{a.reason || '—'}}</td>
                     <td>
                       <span class="badge" [class.text-bg-warning]="a.status==='SUBMITTED'" [class.text-bg-success]="a.status==='APPROVED'" [class.text-bg-danger]="a.status==='REJECTED'" [class.text-bg-secondary]="a.status!=='SUBMITTED' && a.status!=='APPROVED' && a.status!=='REJECTED'">
@@ -131,6 +143,7 @@ import { AdvanceRequest } from '../../core/models';
                   <div>
                     <div class="fw-semibold">#{{a.id}} — {{a.amount}} {{a.currency}}</div>
                     <div class="text-muted small">Employé: {{a.user.fullName || a.user.email}}</div>
+                    <div class="text-muted small">Période: {{ formatPeriod(a) }}</div>
                     <div class="small">{{a.reason || '—'}}</div>
                   </div>
                   <div class="d-flex gap-2">
@@ -153,6 +166,7 @@ export class AdvancesPageComponent implements OnInit {
   loading = signal(false);
 
   form = new FormGroup({
+    period: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),
     amount: new FormControl<number | null>(null, { nonNullable: false, validators: [Validators.required, Validators.min(1)] }),
     reason: new FormControl<string>('', { nonNullable: true })
   });
@@ -163,7 +177,18 @@ export class AdvancesPageComponent implements OnInit {
     private alerts: AlertService,
   ) {}
 
+  // Enforced rule: advances are only allowed for the current month.
+  currentPeriod = (() => {
+    const now = new Date();
+    const m = String(now.getMonth()+1).padStart(2,'0');
+    const y = now.getFullYear();
+    return `${y}-${m}`;
+  })();
+
   ngOnInit(): void {
+    this.form.patchValue({ period: this.currentPeriod });
+    // Lock the period: current month only (UX + avoids invalid historical requests)
+    this.form.controls.period.disable({ emitEvent: false });
     this.reload();
   }
 
@@ -188,16 +213,32 @@ export class AdvancesPageComponent implements OnInit {
     this.loading.set(true);
     const amount = Number(this.form.value.amount);
     const reason = (this.form.value.reason || '').trim();
+    // Always use current month (server enforces too)
+    const [yy, mm] = this.currentPeriod.split('-');
+    const periodYear = Number(yy);
+    const periodMonth = Number(mm);
 
-    this.api.create({ amount, reason: reason || null, status: 'SUBMITTED' }).subscribe({
+    this.api.create({ amount, reason: reason || null, status: 'SUBMITTED', periodYear, periodMonth }).subscribe({
       next: () => {
         this.alerts.toast({ icon: 'success', title: 'Demande envoyée' });
-        this.form.reset({ amount: null, reason: '' });
+        const p = (this.form.value as any).period;
+        this.form.reset({ period: p, amount: null, reason: '' });
         this.reload();
         this.loading.set(false);
       },
       error: (err) => {
-        this.alerts.toast({ icon: 'error', title: 'Erreur', text: err?.error?.error || 'Impossible d\'envoyer la demande' });
+        const code = err?.error?.error;
+        if (code === 'already_requested_for_month') {
+          this.alerts.toast({ icon: 'warning', title: 'Déjà demandé', text: `Une avance a déjà été faite pour ${err?.error?.period || 'ce mois'}.` });
+        } else if (code === 'advance_only_current_month') {
+          this.alerts.toast({ icon: 'warning', title: 'Période invalide', text: 'L\'avance est autorisée uniquement pour le mois en cours.' });
+        } else if (code === 'net_salary_missing') {
+          this.alerts.toast({ icon: 'warning', title: 'Salaire net manquant', text: 'Demandez à l\'admin de renseigner votre salaire net.' });
+        } else if (code === 'amount_exceeds_limit') {
+          this.alerts.toast({ icon: 'warning', title: 'Montant trop élevé', text: `Max autorisé: ${err?.error?.max} DT (40% du salaire net).` });
+        } else {
+          this.alerts.toast({ icon: 'error', title: 'Erreur', text: code || 'Impossible d\'envoyer la demande' });
+        }
         this.loading.set(false);
       }
     });
@@ -220,4 +261,16 @@ export class AdvancesPageComponent implements OnInit {
       error: () => this.alerts.toast({ icon: 'error', title: 'Erreur', text: 'Impossible d\'enregistrer la décision' })
     });
   }
+  formatPeriod(a: any): string {
+    if (!a?.periodMonth || !a?.periodYear) {
+      return '-';
+    }
+  
+    const month = a.periodMonth < 10
+      ? '0' + a.periodMonth
+      : a.periodMonth;
+  
+    return `${month}/${a.periodYear}`;
+  }
+  
 }

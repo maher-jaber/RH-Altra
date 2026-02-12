@@ -17,6 +17,9 @@ RUN composer install --no-interaction --no-progress --prefer-dist --no-scripts -
 # Copy the rest of the application
 COPY . .
 
+# PHP performance defaults (opcache + realpath cache)
+COPY docker/php.ini /usr/local/etc/php/conf.d/zz-perf.ini
+
 # Make entrypoint executable
 RUN chmod +x /app/docker-entrypoint.sh
 

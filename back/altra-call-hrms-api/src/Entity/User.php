@@ -49,6 +49,10 @@ private ?self $manager = null;
 #[ORM\JoinColumn(name: 'manager2_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
 private ?self $manager2 = null;
 
+
+    #[ORM\Column(name: 'net_salary', type: 'decimal', precision: 10, scale: 2, nullable: true)]
+    private ?string $netSalary = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -85,6 +89,13 @@ public function setManager(?self $manager): self { $this->manager = $manager; re
 
 public function getManager2(): ?self { return $this->manager2; }
 public function setManager2(?self $manager2): self { $this->manager2 = $manager2; return $this; }
+
+
+    public function getNetSalary(): ?float { return $this->netSalary !== null ? (float)$this->netSalary : null; }
+    public function setNetSalary(?float $salary): self {
+        $this->netSalary = $salary === null ? null : number_format((float)$salary, 2, '.', '');
+        return $this;
+    }
 
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
 

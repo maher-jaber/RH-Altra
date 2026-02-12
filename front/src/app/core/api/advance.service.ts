@@ -7,17 +7,13 @@ import { AdvanceRequest } from '../models';
 export class AdvanceService {
   constructor(private http: HttpClient) {}
 
-  my() {
-    return this.http.get<AdvanceRequest[]>(`${environment.apiBaseUrl}/api/advances/my`);
-  }
+  my(page?:number, limit?:number){ const q = page ? `?page=${page}&limit=${limit||10}`:''; return this.http.get<any>(`${environment.apiBaseUrl}/api/advances/my${q}`); }
 
-  create(payload: { amount: number; currency?: string; reason?: string | null; status?: 'DRAFT' | 'SUBMITTED' }) {
+  create(payload: { amount: number; currency?: string; reason?: string | null; status?: 'DRAFT' | 'SUBMITTED'; periodYear?: number; periodMonth?: number }) {
     return this.http.post<AdvanceRequest>(`${environment.apiBaseUrl}/api/advances`, payload);
   }
 
-  pending() {
-    return this.http.get<AdvanceRequest[]>(`${environment.apiBaseUrl}/api/advances/pending`);
-  }
+  pending(page?:number, limit?:number){ const q = page ? `?page=${page}&limit=${limit||10}`:''; return this.http.get<any>(`${environment.apiBaseUrl}/api/advances/pending${q}`); }
 
   getOne(id: number) {
     return this.http.get<AdvanceRequest>(`${environment.apiBaseUrl}/api/advances/${id}`);

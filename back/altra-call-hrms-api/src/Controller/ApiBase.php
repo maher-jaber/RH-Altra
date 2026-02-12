@@ -54,7 +54,10 @@ protected function requireRole(Request $request, string $role): ApiKeyUser
 {
     $u = $this->requireUser($request);
     if (!in_array($role, $u->roles, true)) {
-        throw new UnauthorizedHttpException('X-API-KEY', 'Forbidden');
+        // IMPORTANT: Forbidden must be a 403 (not 401).
+        // The front-end clears the auth token on 401 (invalid/expired token).
+        // Returning 403 here avoids unintended logouts when a user simply lacks permissions.
+        throw $this->createAccessDeniedException('Forbidden');
     }
     return $u;
 }
@@ -64,6 +67,23 @@ protected function hasRole(ApiKeyUser $u, string $role): bool
     return in_array($role, $u->roles, true);
 }
 
+
+
+    /**
+     * Pagination helper. If client sends ?page=1&limit=10, controllers may return:
+     * { items: [...], meta: { page, limit, total, pages } }
+     * If pagination params are absent, controllers may keep legacy response.
+     */
+    protected function parsePagination(Request $r): array
+    {
+        $hasPage = $r->query->has('page') || $r->query->has('limit');
+        $page = max(1, (int)$r->query->get('page', 1));
+        $limit = (int)$r->query->get('limit', 10);
+        if ($limit <= 0) { $limit = 10; }
+        if ($limit > 100) { $limit = 100; }
+        $offset = ($page - 1) * $limit;
+        return ['enabled' => $hasPage, 'page' => $page, 'limit' => $limit, 'offset' => $offset];
+    }
 
     protected function jsonOk(array $data = [], int $status = 200): JsonResponse
     {

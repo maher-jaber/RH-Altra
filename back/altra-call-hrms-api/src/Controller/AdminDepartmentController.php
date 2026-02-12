@@ -22,11 +22,53 @@ class AdminDepartmentController extends ApiBase {
     public function list(Request $request, EntityManagerInterface $em): JsonResponse {
         $this->requireAdmin($request);
 
-        $items = array_map(fn($d)=>['id'=>$d->getId(),'name'=>$d->getName()], $em->getRepository(Department::class)->findAll());
-        return $this->jsonOk(['items'=>$items]);
+        $pg = $this->parsePagination($request);
+        $q = trim((string)$request->query->get('q', ''));
+
+        if (!$pg['enabled']) {
+            $items = array_map(fn(Department $d)=>['id'=>(string)$d->getId(),'name'=>$d->getName()],
+                $em->getRepository(Department::class)->findBy([], ['id' => 'DESC'])
+            );
+            return $this->jsonOk(['items'=>$items]);
+        }
+
+        $qb = $em->createQueryBuilder()
+            ->select('d')
+            ->from(Department::class, 'd')
+            ->orderBy('d.id', 'DESC')
+            ->setFirstResult($pg['offset'])
+            ->setMaxResults($pg['limit']);
+
+        if ($q !== '') {
+            $qb->andWhere('LOWER(d.name) LIKE :q')
+               ->setParameter('q', '%'.mb_strtolower($q).'%');
+        }
+
+        $items = $qb->getQuery()->getResult();
+
+        $countQb = $em->createQueryBuilder()
+            ->select('COUNT(d2.id)')
+            ->from(Department::class, 'd2');
+
+        if ($q !== '') {
+            $countQb->where('LOWER(d2.name) LIKE :q')
+                    ->setParameter('q', '%'.mb_strtolower($q).'%');
+        }
+
+        $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
+        return $this->jsonOk([
+            'items' => array_map(fn(Department $d)=>['id'=>(string)$d->getId(),'name'=>$d->getName()], $items),
+            'meta' => [
+                'page' => $pg['page'],
+                'limit' => $pg['limit'],
+                'total' => $total,
+                'pages' => (int)ceil($total / max(1,$pg['limit'])),
+            ]
+        ]);
     }
 
-    #[Route('/api/admin/departments', methods:['POST'])]
+        #[Route('/api/admin/departments', methods:['POST'])]#[Route('/api/admin/departments', methods:['POST'])]
     public function create(Request $r, EntityManagerInterface $em): JsonResponse {
         $this->requireAdmin($r);
 

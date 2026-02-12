@@ -25,21 +25,74 @@ class AdminUserController extends ApiBase
     {
         $this->requireAdmin($request);
 
-        $users = $em->getRepository(User::class)->findBy([], ['id' => 'DESC']);
+        $pg = $this->parsePagination($request);
+        $q = trim((string)$request->query->get('q', ''));
+
+        if (!$pg['enabled']) {
+            $users = $em->getRepository(User::class)->findBy([], ['id' => 'DESC']);
+            $items = array_map(fn(User $u) => [
+                'id' => (string)$u->getId(),
+                'email' => $u->getEmail(),
+                'fullName' => $u->getFullName(),
+                'roles' => $u->getRoles(),
+                'apiKey' => $u->getApiKey(),
+                'netSalary' => $u->getNetSalary(),
+                'departmentId' => $u->getDepartment()?->getId() ? (string)$u->getDepartment()->getId() : null,
+                'managerId' => $u->getManager()?->getId() ? (string)$u->getManager()->getId() : null,
+                'manager2Id' => $u->getManager2()?->getId() ? (string)$u->getManager2()->getId() : null,
+            ], $users);
+            return $this->jsonOk(['items' => $items]);
+        }
+
+        $qb = $em->createQueryBuilder()
+            ->select('u')
+            ->from(User::class, 'u')
+            ->orderBy('u.id', 'DESC')
+            ->setFirstResult($pg['offset'])
+            ->setMaxResults($pg['limit']);
+
+        if ($q !== '') {
+            $qb->andWhere('LOWER(u.email) LIKE :q OR LOWER(u.fullName) LIKE :q')
+               ->setParameter('q', '%'.mb_strtolower($q).'%');
+        }
+
+        $users = $qb->getQuery()->getResult();
+
+        $countQb = $em->createQueryBuilder()
+            ->select('COUNT(u2.id)')
+            ->from(User::class, 'u2');
+
+        if ($q !== '') {
+            $countQb->where('LOWER(u2.email) LIKE :q OR LOWER(u2.fullName) LIKE :q')
+                    ->setParameter('q', '%'.mb_strtolower($q).'%');
+        }
+
+        $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
         $items = array_map(fn(User $u) => [
             'id' => (string)$u->getId(),
             'email' => $u->getEmail(),
             'fullName' => $u->getFullName(),
             'roles' => $u->getRoles(),
             'apiKey' => $u->getApiKey(),
-            'department' => $u->getDepartment() ? ['id' => (string)$u->getDepartment()->getId(), 'name' => $u->getDepartment()->getName()] : null,
-            'manager' => $u->getManager() ? ['id' => (string)$u->getManager()->getId(), 'fullName' => $u->getManager()->getFullName(), 'email' => $u->getManager()->getEmail()] : null,
-            'manager2' => $u->getManager2() ? ['id' => (string)$u->getManager2()->getId(), 'fullName' => $u->getManager2()->getFullName(), 'email' => $u->getManager2()->getEmail()] : null,
-            'createdAt' => $u->getCreatedAt()->format('c'),
+            'netSalary' => $u->getNetSalary(),
+            'departmentId' => $u->getDepartment()?->getId() ? (string)$u->getDepartment()->getId() : null,
+            'managerId' => $u->getManager()?->getId() ? (string)$u->getManager()->getId() : null,
+            'manager2Id' => $u->getManager2()?->getId() ? (string)$u->getManager2()->getId() : null,
         ], $users);
 
-        return $this->jsonOk(['items' => $items]);
+        return $this->jsonOk([
+            'items' => $items,
+            'meta' => [
+                'page' => $pg['page'],
+                'limit' => $pg['limit'],
+                'total' => $total,
+                'pages' => (int)ceil($total / max(1,$pg['limit'])),
+            ]
+        ]);
     }
+
+    
 
     #[Route('/api/admin/users', name: 'api_admin_users_create', methods: ['POST'])]
     public function create(Request $request, EntityManagerInterface $em): JsonResponse
@@ -96,6 +149,7 @@ class AdminUserController extends ApiBase
                 'fullName' => $u->getFullName(),
                 'roles' => $u->getRoles(),
                 'apiKey' => $u->getApiKey(),
+                'netSalary' => $u->getNetSalary(),
             'department' => $u->getDepartment() ? ['id' => (string)$u->getDepartment()->getId(), 'name' => $u->getDepartment()->getName()] : null,
             'manager' => $u->getManager() ? ['id' => (string)$u->getManager()->getId(), 'fullName' => $u->getManager()->getFullName(), 'email' => $u->getManager()->getEmail()] : null,
             'manager2' => $u->getManager2() ? ['id' => (string)$u->getManager2()->getId(), 'fullName' => $u->getManager2()->getFullName(), 'email' => $u->getManager2()->getEmail()] : null,
@@ -127,6 +181,40 @@ class AdminUserController extends ApiBase
             $fullName = trim((string)$data['fullName']);
             $u->setFullName($fullName !== '' ? $fullName : $u->getEmail());
         }
+
+        if (array_key_exists('departmentId', $data)) {
+            $departmentId = $data['departmentId'];
+            if ($departmentId) {
+                $dept = $em->getRepository(Department::class)->find($departmentId);
+                $u->setDepartment($dept ?: null);
+            } else {
+                $u->setDepartment(null);
+            }
+        }
+        if (array_key_exists('managerId', $data)) {
+            $managerId = $data['managerId'];
+            if ($managerId) {
+                $m = $em->getRepository(User::class)->find($managerId);
+                $u->setManager($m ?: null);
+            } else {
+                $u->setManager(null);
+            }
+        }
+        if (array_key_exists('manager2Id', $data)) {
+            $manager2Id = $data['manager2Id'];
+            if ($manager2Id) {
+                $m2 = $em->getRepository(User::class)->find($manager2Id);
+                $u->setManager2($m2 ?: null);
+            } else {
+                $u->setManager2(null);
+            }
+        }
+
+        if (array_key_exists('netSalary', $data)) {
+            $v = $data['netSalary'];
+            $u->setNetSalary($v === null || $v === '' ? null : (float)$v);
+        }
+
         if (isset($data['roles']) && is_array($data['roles']) && count($data['roles']) > 0) {
             $u->setRoles($data['roles']);
         }
@@ -146,6 +234,7 @@ class AdminUserController extends ApiBase
                 'fullName' => $u->getFullName(),
                 'roles' => $u->getRoles(),
                 'apiKey' => $u->getApiKey(),
+                'netSalary' => $u->getNetSalary(),
             'department' => $u->getDepartment() ? ['id' => (string)$u->getDepartment()->getId(), 'name' => $u->getDepartment()->getName()] : null,
             'manager' => $u->getManager() ? ['id' => (string)$u->getManager()->getId(), 'fullName' => $u->getManager()->getFullName(), 'email' => $u->getManager()->getEmail()] : null,
             'manager2' => $u->getManager2() ? ['id' => (string)$u->getManager2()->getId(), 'fullName' => $u->getManager2()->getFullName(), 'email' => $u->getManager2()->getEmail()] : null,

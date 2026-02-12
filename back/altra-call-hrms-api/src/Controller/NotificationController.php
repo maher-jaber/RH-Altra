@@ -21,10 +21,44 @@ class NotificationController extends ApiBase
         return $user;
     }
 
-    #[Route('/api/notifications', methods:['GET'])]
+        #[Route('/api/notifications', methods:['GET'])]
     public function list(Request $r, EntityManagerInterface $em): JsonResponse {
         $user = $this->getCurrentUser($r, $em);
-        $items = $em->getRepository(Notification::class)->findBy(['user' => $user], ['id' => 'DESC']);
+        $pg = $this->parsePagination($r);
+
+        if (!$pg['enabled']) {
+            $items = $em->getRepository(Notification::class)->findBy(['user' => $user], ['id' => 'DESC']);
+            $out=array_map(fn(Notification $n)=>[
+                'id'=>(string)$n->getId(),
+                'title'=>$n->getTitle(),
+                'body'=>$n->getBody(),
+                'type'=>$n->getType(),
+                'isRead'=>$n->isRead(),
+                'createdAt'=>$n->getCreatedAt()->format(DATE_ATOM),
+                'actionUrl'=>$n->getActionUrl(),
+                'payload'=>$n->getPayload(),
+            ], $items);
+            return $this->jsonOk(['items'=>$out]);
+        }
+
+        $qb = $em->createQueryBuilder()
+            ->select('n')
+            ->from(Notification::class, 'n')
+            ->where('n.user = :u')
+            ->setParameter('u', $user)
+            ->orderBy('n.id', 'DESC')
+            ->setFirstResult($pg['offset'])
+            ->setMaxResults($pg['limit']);
+
+        $items = $qb->getQuery()->getResult();
+
+        $countQb = $em->createQueryBuilder()
+            ->select('COUNT(n2.id)')
+            ->from(Notification::class, 'n2')
+            ->where('n2.user = :u')
+            ->setParameter('u', $user);
+        $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
         $out=array_map(fn(Notification $n)=>[
             'id'=>(string)$n->getId(),
             'title'=>$n->getTitle(),
@@ -35,10 +69,19 @@ class NotificationController extends ApiBase
             'actionUrl'=>$n->getActionUrl(),
             'payload'=>$n->getPayload(),
         ], $items);
-        return $this->jsonOk(['items'=>$out]);
+
+        return $this->jsonOk([
+            'items'=>$out,
+            'meta'=>[
+                'page'=>$pg['page'],
+                'limit'=>$pg['limit'],
+                'total'=>$total,
+                'pages'=>(int)ceil($total / max(1,$pg['limit'])),
+            ]
+        ]);
     }
 
-    #[Route('/api/notifications/{id}/read', methods:['POST'])]
+        #[Route('/api/notifications/{id}/read', methods:['POST'])]
     public function readOne(string $id, Request $r, EntityManagerInterface $em): JsonResponse {
         $user = $this->getCurrentUser($r, $em);
         $n=$em->getRepository(Notification::class)->find($id);

@@ -24,28 +24,80 @@ class DailyReportController extends ApiBase
         return $user;
     }
 
-    #[Route('/api/daily-reports/my', methods: ['GET'])]
-    public function my(Request $request): JsonResponse
-    {
-        $user = $this->getCurrentUser($request);
-        $rows = $this->em->getRepository(DailyReport::class)->findBy(['user' => $user], ['day' => 'DESC']);
-        return $this->jsonOk(array_map(fn(DailyReport $r) => $this->serialize($r), $rows));
+        #[Route('/api/daily-reports/my', methods:['GET'])]
+    public function my(Request $r): JsonResponse {
+        $u = $this->getCurrentUser($r);
+        $pg = $this->parsePagination($r);
+
+        if (!$pg['enabled']) {
+            $items = $this->em->getRepository(DailyReport::class)->findBy(['user'=>$u], ['id'=>'DESC']);
+            return $this->jsonOk(['items'=>array_map([$this,'serialize'], $items)]);
+        }
+
+        $qb = $this->em->createQueryBuilder()
+            ->select('dr')
+            ->from(DailyReport::class, 'dr')
+            ->where('dr.user = :u')
+            ->setParameter('u', $u)
+            ->orderBy('dr.id', 'DESC')
+            ->setFirstResult($pg['offset'])
+            ->setMaxResults($pg['limit']);
+
+        $items = $qb->getQuery()->getResult();
+
+        $countQb = $this->em->createQueryBuilder()
+            ->select('COUNT(dr2.id)')
+            ->from(DailyReport::class, 'dr2')
+            ->where('dr2.user = :u')
+            ->setParameter('u', $u);
+
+        $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
+        return $this->jsonOk([
+            'items'=>array_map([$this,'serialize'], $items),
+            'meta'=>[
+                'page'=>$pg['page'],
+                'limit'=>$pg['limit'],
+                'total'=>$total,
+                'pages'=>(int)ceil($total / max(1,$pg['limit'])),
+            ]
+        ]);
     }
 
-    #[Route('/api/daily-reports', methods: ['POST'])]
+        #[Route('/api/daily-reports', methods: ['POST'])]
     public function upsert(Request $request): JsonResponse
     {
         $user = $this->getCurrentUser($request);
         $data = json_decode((string)$request->getContent(), true) ?: [];
 
-        $dayStr = (string)($data['day'] ?? '');
-        $content = (string)($data['content'] ?? '');
+        // Backward compatible payload:
+        // - legacy: {day, content}
+        // - new UI: {date, tasks, hours, blockers, nextDayPlan}
+        $dayStr = (string)($data['date'] ?? $data['day'] ?? '');
+        if ($dayStr === '') {
+            return $this->json(['error' => 'date_required'], 400);
+        }
+        $day = new \DateTimeImmutable($dayStr);
 
-        if ($dayStr === '' || $content === '') {
-            return $this->json(['error' => 'day/content required'], 400);
+        $legacyContent = (string)($data['content'] ?? '');
+        $tasks = isset($data['tasks']) ? (string)$data['tasks'] : '';
+        $hours = array_key_exists('hours', $data) ? ($data['hours'] === null ? null : (float)$data['hours']) : null;
+        $blockers = isset($data['blockers']) ? (string)$data['blockers'] : '';
+        $next = isset($data['nextDayPlan']) ? (string)$data['nextDayPlan'] : '';
+
+        if ($tasks === '' && $legacyContent === '') {
+            return $this->json(['error' => 'tasks_required'], 400);
         }
 
-        $day = new \DateTimeImmutable($dayStr);
+        // Store structured data in JSON inside "content" column for simplicity.
+        $content = $tasks !== ''
+            ? json_encode([
+                'tasks' => $tasks,
+                'hours' => $hours,
+                'blockers' => $blockers !== '' ? $blockers : null,
+                'nextDayPlan' => $next !== '' ? $next : null,
+              ], JSON_UNESCAPED_UNICODE)
+            : $legacyContent;
         $repo = $this->em->getRepository(DailyReport::class);
         /** @var DailyReport|null $r */
         $r = $repo->findOneBy(['user' => $user, 'day' => $day]);
@@ -72,30 +124,69 @@ class DailyReportController extends ApiBase
         $u = $this->requireUser($request);
         $me = $this->getCurrentUser($request);
 
-        if (!$this->hasRole($u, 'ROLE_SUPERIOR') && !$this->hasRole($u, 'ROLE_ADMIN')) {
-            return $this->json(['error' => 'forbidden'], 403);
+        $allowed = in_array('ROLE_SUPERIOR', $u->roles ?? [], true) || in_array('ROLE_ADMIN', $u->roles ?? [], true);
+        if (!$allowed) return $this->json(['error'=>'forbidden'],403);
+
+        $pg = $this->parsePagination($request);
+
+        if (!$pg['enabled']) {
+            $rows = $this->em->getRepository(DailyReport::class)
+                ->findBy(['manager' => $me], ['id' => 'DESC']);
+            return $this->jsonOk(['items' => array_map([$this,'serialize'], $rows)]);
         }
 
         $qb = $this->em->createQueryBuilder()
-            ->select('r')
-            ->from(DailyReport::class, 'r')
-            ->join('r.user', 'usr')
-            ->orderBy('r.day', 'DESC');
-
-        if (!$this->hasRole($u, 'ROLE_ADMIN')) {
-            $qb->where('usr.manager = :m')->setParameter('m', $me);
-        }
+            ->select('dr')
+            ->from(DailyReport::class, 'dr')
+            ->where('dr.manager = :m')
+            ->setParameter('m', $me)
+            ->orderBy('dr.id', 'DESC')
+            ->setFirstResult($pg['offset'])
+            ->setMaxResults($pg['limit']);
 
         $rows = $qb->getQuery()->getResult();
-        return $this->jsonOk(array_map(fn(DailyReport $r) => $this->serialize($r), $rows));
+
+        $countQb = $this->em->createQueryBuilder()
+            ->select('COUNT(dr2.id)')
+            ->from(DailyReport::class, 'dr2')
+            ->where('dr2.manager = :m')
+            ->setParameter('m', $me);
+
+        $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
+        return $this->jsonOk([
+            'items' => array_map([$this,'serialize'], $rows),
+            'meta' => [
+                'page' => $pg['page'],
+                'limit' => $pg['limit'],
+                'total' => $total,
+                'pages' => (int)ceil($total / max(1,$pg['limit'])),
+            ]
+        ]);
     }
+
 
     private function serialize(DailyReport $r): array
     {
+        $raw = (string)($r->getContent() ?? '');
+        $decoded = null;
+        if ($raw !== '') {
+            $tmp = json_decode($raw, true);
+            if (is_array($tmp) && (isset($tmp['tasks']) || isset($tmp['hours']) || isset($tmp['blockers']) || isset($tmp['nextDayPlan']))) {
+                $decoded = $tmp;
+            }
+        }
+
         return [
             'id' => $r->getId(),
+            'date' => $r->getDay()->format('Y-m-d'),
+            'tasks' => $decoded['tasks'] ?? ($raw ?: ''),
+            'hours' => $decoded['hours'] ?? null,
+            'blockers' => $decoded['blockers'] ?? null,
+            'nextDayPlan' => $decoded['nextDayPlan'] ?? null,
+            // keep legacy fields for compatibility
             'day' => $r->getDay()->format('Y-m-d'),
-            'content' => $r->getContent(),
+            'content' => $raw,
             'user' => [
                 'id' => $r->getUser()?->getId(),
                 'fullName' => $r->getUser()?->getFullName(),

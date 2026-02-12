@@ -8,6 +8,11 @@ export class NotificationStoreService {
   items = signal<NotificationItem[]>([]);
   unreadCount = computed(() => this.items().filter(n => !n.isRead).length);
 
+  // Pagination (server-side)
+  pageIndex = signal(0);
+  pageSize = signal(10);
+  total = signal(0);
+
   private stopSse: (() => void) | null = null;
   private started = false;
 
@@ -35,7 +40,20 @@ export class NotificationStoreService {
   }
 
   refresh(): void {
-    this.api.list().subscribe(list => this.items.set(list));
+    const page = this.pageIndex() + 1;
+    const limit = this.pageSize();
+    this.api.listPaged(page, limit).subscribe(res => {
+      this.items.set(res?.items ?? []);
+      this.total.set(res?.meta?.total ?? (res?.items?.length ?? 0));
+    });
+  }
+
+  setPage(pageIndex: number, pageSize?: number): void {
+    this.pageIndex.set(Math.max(0, pageIndex));
+    if (typeof pageSize === 'number') {
+      this.pageSize.set(Math.max(1, pageSize));
+    }
+    this.refresh();
   }
 
   async markRead(id: string): Promise<void> {

@@ -8,9 +8,9 @@ export class LeaveWorkflowService {
   constructor(private http: HttpClient) {}
 
   // Lists
-  my() { return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/my`)); }
-  pendingManager() { return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/pending/manager`)); }
-  pendingHr() { return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/pending/hr`)); }
+  my(page?:number, limit?:number){ const q = page ? `?page=${page}&limit=${limit||10}`:''; return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/my${q}`)); }
+  pendingManager(page?:number, limit?:number){ const q = page ? `?page=${page}&limit=${limit||10}`:''; return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/pending/manager${q}`)); }
+  pendingHr(page?:number, limit?:number){ const q = page ? `?page=${page}&limit=${limit||10}`:''; return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/pending/hr${q}`)); }
 
   // Types / balance / calculation
   listTypes() { return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leave-types`)); }
@@ -67,6 +67,6 @@ export class LeaveWorkflowService {
   icsDeptUrl() { return `${environment.apiBaseUrl}/api/leaves/ics/department`; }
 
 
-  listNotifications(){ return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/notifications`)); }
+  listNotifications(page?:number, limit?:number){ const q = page ? `?page=${page}&limit=${limit||10}`:''; return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/notifications${q}`)); }
   markNotificationRead(id:string){ return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/notifications/${id}/read`, {})); }
 }

@@ -25,15 +25,47 @@ class ExitPermissionController extends ApiBase
         return $user;
     }
 
-    #[Route('/api/exit-permissions/my', methods: ['GET'])]
-    public function my(Request $request): JsonResponse
-    {
-        $user = $this->getCurrentUser($request);
-        $rows = $this->em->getRepository(ExitPermission::class)->findBy(['user' => $user], ['id' => 'DESC']);
-        return $this->jsonOk(array_map(fn(ExitPermission $e) => $this->serialize($e), $rows));
+        #[Route('/api/exit-permissions/my', methods:['GET'])]
+    public function my(Request $r): JsonResponse {
+        $u = $this->getCurrentUser($r);
+        $pg = $this->parsePagination($r);
+
+        if (!$pg['enabled']) {
+            $items = $this->em->getRepository(ExitPermission::class)->findBy(['user'=>$u], ['id'=>'DESC']);
+            return $this->jsonOk(['items'=>array_map([$this,'serialize'], $items)]);
+        }
+
+        $qb = $this->em->createQueryBuilder()
+            ->select('ep')
+            ->from(ExitPermission::class, 'ep')
+            ->where('ep.user = :u')
+            ->setParameter('u', $u)
+            ->orderBy('ep.id', 'DESC')
+            ->setFirstResult($pg['offset'])
+            ->setMaxResults($pg['limit']);
+
+        $items = $qb->getQuery()->getResult();
+
+        $countQb = $this->em->createQueryBuilder()
+            ->select('COUNT(ep2.id)')
+            ->from(ExitPermission::class, 'ep2')
+            ->where('ep2.user = :u')
+            ->setParameter('u', $u);
+
+        $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
+        return $this->jsonOk([
+            'items'=>array_map([$this,'serialize'], $items),
+            'meta'=>[
+                'page'=>$pg['page'],
+                'limit'=>$pg['limit'],
+                'total'=>$total,
+                'pages'=>(int)ceil($total / max(1,$pg['limit'])),
+            ]
+        ]);
     }
 
-    #[Route('/api/exit-permissions', methods: ['POST'])]
+       #[Route('/api/exit-permissions', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $user = $this->getCurrentUser($request);
@@ -85,27 +117,51 @@ class ExitPermissionController extends ApiBase
         return $this->jsonOk($this->serialize($e), 201);
     }
 
-    #[Route('/api/exit-permissions/pending', methods: ['GET'])]
-    public function pending(Request $request): JsonResponse
-    {
-        $u = $this->requireUser($request);
-        $me = $this->getCurrentUser($request);
-
-        $qb = $this->em->createQueryBuilder()
-            ->select('e')
-            ->from(ExitPermission::class, 'e')
-            ->where('e.status = :s')->setParameter('s', ExitPermission::STATUS_SUBMITTED)
-            ->orderBy('e.id', 'DESC');
-
-        if (!$this->hasRole($u, 'ROLE_ADMIN')) {
-            $qb->andWhere('e.manager = :m')->setParameter('m', $me);
+        #[Route('/api/exit-permissions/pending', methods:['GET'])]
+    public function pending(Request $r): JsonResponse {
+        $token = $this->requireUser($r);
+        if (!in_array('ROLE_ADMIN', $token->roles ?? [], true)) {
+            return $this->json(['error'=>'forbidden'],403);
         }
 
-        $rows = $qb->getQuery()->getResult();
-        return $this->jsonOk(array_map(fn(ExitPermission $e) => $this->serialize($e), $rows));
+        $pg = $this->parsePagination($r);
+
+        if (!$pg['enabled']) {
+            $items = $this->em->getRepository(ExitPermission::class)->findBy(['status'=>ExitPermission::STATUS_SUBMITTED], ['id'=>'DESC']);
+            return $this->jsonOk(['items'=>array_map([$this,'serialize'], $items)]);
+        }
+
+        $qb = $this->em->createQueryBuilder()
+            ->select('ep')
+            ->from(ExitPermission::class, 'ep')
+            ->where('ep.status = :st')
+            ->setParameter('st', ExitPermission::STATUS_SUBMITTED)
+            ->orderBy('ep.id', 'DESC')
+            ->setFirstResult($pg['offset'])
+            ->setMaxResults($pg['limit']);
+
+        $items = $qb->getQuery()->getResult();
+
+        $countQb = $this->em->createQueryBuilder()
+            ->select('COUNT(ep2.id)')
+            ->from(ExitPermission::class, 'ep2')
+            ->where('ep2.status = :st')
+            ->setParameter('st', ExitPermission::STATUS_SUBMITTED);
+
+        $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
+        return $this->jsonOk([
+            'items'=>array_map([$this,'serialize'], $items),
+            'meta'=>[
+                'page'=>$pg['page'],
+                'limit'=>$pg['limit'],
+                'total'=>$total,
+                'pages'=>(int)ceil($total / max(1,$pg['limit'])),
+            ]
+        ]);
     }
 
-    #[Route('/api/exit-permissions/{id}/decision', requirements: ['id' => '\\d+'], methods: ['POST'])]
+        #[Route('/api/exit-permissions/{id}/decision', requirements: ['id' => '\\d+'], methods: ['POST'])]
     public function decide(int $id, Request $request): JsonResponse
     {
         $u = $this->requireUser($request);

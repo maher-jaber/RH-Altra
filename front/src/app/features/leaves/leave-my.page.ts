@@ -3,13 +3,14 @@ import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { RouterModule } from '@angular/router';
 import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
 
 @Component({
   standalone:true,
   selector:'app-leave-my',
-  imports:[CommonModule,MatCardModule,MatTableModule,MatButtonModule,RouterModule],
+  imports:[CommonModule,MatCardModule,MatTableModule,MatButtonModule,MatPaginatorModule,RouterModule],
   styles:[`mat-card{border-radius:16px} table{width:100%}`],
   template:`
   <mat-card>
@@ -42,12 +43,30 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
       <tr mat-header-row *matHeaderRowDef="cols"></tr>
       <tr mat-row *matRowDef="let row; columns: cols;"></tr>
     </table>
+    <mat-paginator [length]="total()" [pageIndex]="pageIndex()" [pageSize]="pageSize()" [pageSizeOptions]="[5,10,25,50]" (page)="onPage($event)"></mat-paginator>
   </mat-card>
   `
 })
 export class LeaveMyPage implements OnInit{
   items=signal<any[]>([]);
   cols=['type','period','status','actions'];
+  pageIndex=signal(0);
+  pageSize=signal(10);
+  total=signal(0);
   constructor(private api:LeaveWorkflowService){}
-  async ngOnInit(){ this.items.set((await this.api.my()).items||[]); }
+  async ngOnInit(){ await this.load(); }
+
+  async load(){
+    const page=this.pageIndex()+1;
+    const limit=this.pageSize();
+    const res = await this.api.my(page, limit);
+    this.items.set(res.items||[]);
+    this.total.set(res.meta?.total ?? (res.items?.length||0));
+  }
+
+  async onPage(ev: PageEvent){
+    this.pageIndex.set(ev.pageIndex);
+    this.pageSize.set(ev.pageSize);
+    await this.load();
+  }
 }

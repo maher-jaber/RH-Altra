@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { FormsModule } from '@angular/forms';
@@ -12,7 +13,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
 @Component({
   standalone:true,
   selector:'app-leave-pending-manager',
-  imports:[CommonModule,FormsModule,MatCardModule,MatTableModule,MatButtonModule,MatFormFieldModule,MatInputModule,RouterModule],
+  imports:[CommonModule,FormsModule,MatCardModule,MatTableModule,MatButtonModule,MatFormFieldModule,MatInputModule,MatPaginatorModule,RouterModule],
   styles:[`mat-card{border-radius:16px} table{width:100%} .rowActions{display:flex;gap:8px}`],
   template:`
   <mat-card>
@@ -48,18 +49,35 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
       <tr mat-header-row *matHeaderRowDef="cols"></tr>
       <tr mat-row *matRowDef="let row; columns: cols;"></tr>
     </table>
+    <mat-paginator [length]="total()" [pageIndex]="pageIndex()" [pageSize]="pageSize()" [pageSizeOptions]="[5,10,25,50]" (page)="onPage($event)"></mat-paginator>
   </mat-card>
   `
 })
 export class LeavePendingManagerPage implements OnInit{
   items=signal<any[]>([]);
+  pageIndex = signal(0);
+  pageSize = signal(10);
+  total = signal(0);
   cols=['employee','period','actions'];
   comment='';
   constructor(private api:LeaveWorkflowService){}
-  async ngOnInit(){ this.items.set((await this.api.pendingManager()).items||[]); }
-  async approve(x:any){ await this.api.managerApprove(x.id, this.comment); await this.ngOnInit(); }
+  async ngOnInit(){ await this.load(); }
+
+  async load(){
+    const res = await this.api.pendingManager(this.pageIndex()+1, this.pageSize());
+    this.items.set(res.items||[]);
+    this.total.set(res.meta?.total ?? (res.items?.length || 0));
+  }
+
+  onPage(e: PageEvent){
+    this.pageIndex.set(e.pageIndex);
+    this.pageSize.set(e.pageSize);
+    this.load();
+  }
+
+  async approve(x:any){ await this.api.managerApprove(x.id, this.comment); await this.load(); }
   async reject(x:any){
     await this.api.reject(x.id, this.comment);
-    await this.ngOnInit();
+    await this.load();
   }
 }
