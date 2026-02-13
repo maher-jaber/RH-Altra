@@ -1,11 +1,19 @@
 import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet, Router, NavigationEnd, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { animate, group, query, style, transition, trigger } from '@angular/animations';
 
-import { AlertService } from '../../core/ui/alert.service';
+import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatListModule } from '@angular/material/list';
+import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatBadgeModule } from '@angular/material/badge';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
+import { AlertService } from '../../core/ui/alert.service';
 import { AuthService } from '../../core/auth.service';
 import { NotificationService } from '../../core/api/notification.service';
 import { NotificationStoreService } from '../../core/api/notification-store.service';
@@ -15,12 +23,22 @@ import { NotificationItem } from '../../core/models';
   standalone: true,
   selector: 'app-shell',
   imports: [
-    CommonModule, RouterOutlet, RouterLink, RouterLinkActive,
+    CommonModule,
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    MatSidenavModule,
+    MatToolbarModule,
+    MatListModule,
+    MatButtonModule,
+    MatMenuModule,
+    MatBadgeModule,
+    MatDividerModule,
+    MatTooltipModule,
   ],
   animations: [
     trigger('routeFade', [
       transition('* <=> *', [
-        // Use absolute (not fixed) to avoid covering the whole UI and hiding content.
         query(':enter, :leave', [style({ position: 'absolute', inset: '0 0 auto 0', width: '100%' })], { optional: true }),
         group([
           query(':leave', [
@@ -39,104 +57,116 @@ import { NotificationItem } from '../../core/models';
 
     .app-container {
       height: 100vh;
-      /* Background is managed globally in styles.css for consistent readability */
       background: transparent;
     }
 
-    .sidebar {
-      width: 290px;
+    .brand {
+      font-weight: 900;
+      letter-spacing: .2px;
+      color: var(--text);
+      line-height: 1.1;
+    }
+    .brand-sub {
+      font-size: 12px;
+      color: var(--text-2);
+      margin-top: 3px;
+    }
+
+    .sidenav {
+      width: 296px;
+      border-right: 1px solid var(--stroke);
       background: linear-gradient(180deg, var(--surface), var(--surface-2));
       backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border-right: 1px solid var(--stroke);
     }
+
+    .sidenav-inner { padding: 12px; }
 
     .brandbar {
       display:flex;
       align-items:center;
       gap: 12px;
-      padding: 14px 16px;
-      height: 68px;
-      box-sizing: border-box;
+      padding: 8px 10px 14px;
     }
 
     .logo {
-      width: 40px;
-      height: 40px;
-      border-radius: 14px;
+      width: 42px;
+      height: 42px;
+      border-radius: 16px;
       display:grid;
       place-items:center;
       color: rgba(255,255,255,0.92);
-      background: linear-gradient(135deg, rgba(37,99,235,.65), rgba(124,58,237,.55));
-      box-shadow: 0 14px 35px rgba(0,0,0,.35);
-      transform: translateZ(0);
-      transition: transform var(--dur-2) var(--ease), filter var(--dur-2) var(--ease);
+      background: linear-gradient(135deg, rgba(37,99,235,.85), rgba(124,58,237,.75));
+      box-shadow: 0 14px 35px rgba(0,0,0,.22);
     }
-    .logo:hover { transform: translateY(-1px) scale(1.02); filter: brightness(1.08); }
 
-    .brand { font-weight: 800; letter-spacing: .3px; line-height: 1.05; color: var(--text); }
-    .brand-sub { font-size: 12px; color: var(--text-2); margin-top: 3px; }
+    .section-title {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      color: var(--text-2);
+      padding: 12px 12px 6px;
+    }
 
-    .nav-section { padding: 8px 10px 12px; }
-    .nav-title { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--text-2); padding: 12px 12px 8px; }
-
-    .navlink {
-      position: relative;
-      display:flex;
-      align-items:center;
-      gap: 10px;
-      padding: 10px 12px;
+    a.mat-mdc-list-item {
       border-radius: 14px;
-      margin: 4px 6px;
-      color: var(--text);
-      transition: transform var(--dur-2) var(--ease), background var(--dur-2) var(--ease), border var(--dur-2) var(--ease);
+      margin: 3px 0;
+      --mdc-list-list-item-one-line-container-height: 44px;
     }
-    .navlink:hover { transform: translateY(-1px); background: rgba(29,78,216,0.08); }
-    .navlink.active {
-      background: linear-gradient(90deg, rgba(37,99,235,.28), rgba(124,58,237,.18));
+
+    a.mat-mdc-list-item.active {
+      background: linear-gradient(90deg, rgba(37,99,235,.20), rgba(124,58,237,.12));
       border: 1px solid var(--stroke);
     }
-    .navlink.active::before {
-      content: '';
-      position: absolute;
-      inset: 10px auto 10px 10px;
-      width: 3px;
-      border-radius: 99px;
-      background: linear-gradient(180deg, rgba(6,182,212,.95), rgba(37,99,235,.95));
-      box-shadow: 0 0 0 6px rgba(6,182,212,.10);
-    }
 
-    .icon-btn {
-      width: 40px; height: 40px;
-      border-radius: 999px;
-      display:inline-grid;
+    .item-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display:grid;
       place-items:center;
       border: 1px solid var(--stroke);
-      background: var(--surface-2);
+      background: var(--surface);
       color: var(--text);
-      transition: transform var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
     }
-    .icon-btn:hover { transform: translateY(-1px); background: var(--surface); }
 
     .topbar {
       position: sticky;
       top: 0;
-      z-index: 1050;
+      z-index: 1000;
+      border-bottom: 1px solid var(--stroke);
       background: linear-gradient(180deg, var(--surface), var(--surface-2));
       backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border-bottom: 1px solid var(--stroke);
     }
 
-    .dropdown-menu { z-index: 1060; }
-
-    .content { padding: 18px; }
-
-    .route-host {
-      position: relative;
-      min-height: calc(100vh - 68px - 36px);
+    .toolbar {
+      height: 68px;
+      padding: 0 16px;
     }
+
+    .title {
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      font-weight: 900;
+      letter-spacing: .2px;
+      color: var(--text);
+    }
+
+    .title .crumb { opacity: .65; font-weight: 800; }
+    .title .sep { opacity: .35; }
+
     .spacer { flex: 1 1 auto; }
+
+    .icon-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      background: var(--surface);
+      display:grid;
+      place-items:center;
+    }
 
     .pill {
       display:inline-flex;
@@ -147,7 +177,6 @@ import { NotificationItem } from '../../core/models';
       background: var(--surface);
       border: 1px solid var(--stroke);
       color: var(--text);
-      cursor: pointer;
     }
 
     .avatar {
@@ -155,134 +184,131 @@ import { NotificationItem } from '../../core/models';
       background: linear-gradient(135deg, rgba(6,182,212,.35), rgba(37,99,235,.35));
       border: 1px solid var(--stroke);
       display:grid; place-items:center;
-      font-weight: 800; font-size: 12px;
+      font-weight: 900; font-size: 12px;
       color: var(--text);
     }
 
     .user-meta { display:flex; flex-direction: column; line-height: 1.05; }
-    .user-name { font-size: 13px; font-weight: 800; color: var(--text); }
+    .user-name { font-size: 13px; font-weight: 900; color: var(--text); }
     .user-role { font-size: 11px; color: var(--text-2); }
 
-    .title {
-      display:flex;
-      align-items:center;
-      gap: 10px;
-      font-weight: 800;
-      letter-spacing: .2px;
-      color: var(--text);
+    .content {
+      padding: 18px;
     }
 
-    .title .crumb { opacity: .65; font-weight: 700; }
-    .title .sep { opacity: .35; }
-
-    .route-host { animation: fadeUp var(--dur-3) var(--ease) both; }
+    .route-host {
+      position: relative;
+      min-height: calc(100vh - 68px - 36px);
+      animation: fadeUp var(--dur-3) var(--ease) both;
+    }
 
     @media (max-width: 980px) {
-      .sidebar { width: 86px; }
+      .sidenav { width: 84px; }
       .brand-text { display:none; }
-      .nav-title { display:none; }
-      .user-meta { display:none; }
-      .navlink span.label { display:none; }
-      .navlink.active::before { left: 6px; }
+      .section-title { display:none; }
+      .label { display:none; }
     }
   `],
   template: `
-  <div class="app-container d-flex">
-    <aside class="sidebar">
-      <div class="brandbar">
-        <div class="logo"><i class="bi bi-building"></i></div>
-        <div class="brand-text">
-          <div class="brand">ALTRACALL HRMS</div>
-          <div class="brand-sub">Portail RH interne</div>
+  <mat-sidenav-container class="app-container">
+    <mat-sidenav mode="side" opened class="sidenav">
+      <div class="sidenav-inner">
+        <div class="brandbar">
+          <div class="logo"><i class="bi bi-building"></i></div>
+          <div class="brand-text">
+            <div class="brand">ALTRACALL HRMS</div>
+            <div class="brand-sub">Portail RH interne</div>
+          </div>
         </div>
+
+        <mat-divider></mat-divider>
+
+        <div class="section-title">Général</div>
+        <mat-nav-list>
+          <a mat-list-item routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">
+            <span class="item-icon"><i class="bi bi-speedometer2"></i></span>
+            <span class="label">Tableau de bord</span>
+          </a>
+        </mat-nav-list>
+
+        <div class="section-title" style="margin-top:6px">RH</div>
+        <mat-nav-list>
+          <a mat-list-item routerLink="/leaves" routerLinkActive="active">
+            <span class="item-icon"><i class="bi bi-umbrella-beach"></i></span>
+            <span class="label">Congés</span>
+          </a>
+          <a mat-list-item routerLink="/advances" routerLinkActive="active">
+            <span class="item-icon"><i class="bi bi-cash-coin"></i></span>
+            <span class="label">Avances / acompte</span>
+          </a>
+          <a mat-list-item routerLink="/exit-permissions" routerLinkActive="active">
+            <span class="item-icon"><i class="bi bi-person-walking"></i></span>
+            <span class="label">Autorisations de sortie</span>
+          </a>
+          <a mat-list-item routerLink="/daily-reports" routerLinkActive="active">
+            <span class="item-icon"><i class="bi bi-clipboard-check"></i></span>
+            <span class="label">Compte-rendu journalier</span>
+          </a>
+        </mat-nav-list>
+
+        <ng-container *ngIf="auth.hasRole('ROLE_ADMIN')">
+          <div class="section-title" style="margin-top:6px">Administration</div>
+          <mat-nav-list>
+            <a mat-list-item routerLink="/admin/users" routerLinkActive="active">
+              <span class="item-icon"><i class="bi bi-shield-lock"></i></span>
+              <span class="label">Utilisateurs</span>
+            </a>
+            <a mat-list-item routerLink="/admin/departments" routerLinkActive="active">
+              <span class="item-icon"><i class="bi bi-building-gear"></i></span>
+              <span class="label">Départements</span>
+            </a>
+            <a mat-list-item routerLink="/admin/people-hub" routerLinkActive="active">
+              <span class="item-icon"><i class="bi bi-people-fill"></i></span>
+              <span class="label">Vue 360° employés</span>
+            </a>
+            <a mat-list-item *ngIf="isAdmin()" routerLink="/settings" routerLinkActive="active">
+              <span class="item-icon"><i class="bi bi-gear"></i></span>
+              <span class="label">Paramètres</span>
+            </a>
+          </mat-nav-list>
+        </ng-container>
       </div>
-      <hr class="border-opacity-25 my-0" style="border-color: rgba(255,255,255,.18)">
+    </mat-sidenav>
 
-      <div class="nav-section">
-        <div class="nav-title">Général</div>
-        <a class="navlink" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">
-          <i class="bi bi-speedometer2"></i>
-          <span class="label">Tableau de bord</span>
-        </a>
-        <!-- Notifications: only keep the bell icon in the top navbar (less clutter) -->
-
-        <div class="nav-title" style="margin-top:10px">RH</div>
-        <a class="navlink" routerLink="/leaves" routerLinkActive="active">
-          <i class="bi bi-umbrella-beach"></i>
-          <span class="label">Congés</span>
-        </a>
-        <a class="navlink" routerLink="/advances" routerLinkActive="active">
-          <i class="bi bi-cash-coin"></i>
-          <span class="label">Avances / acompte</span>
-        </a>
-        <a class="navlink" routerLink="/exit-permissions" routerLinkActive="active">
-          <i class="bi bi-person-walking"></i>
-          <span class="label">Autorisations de sortie</span>
-        </a>
-        <a class="navlink" routerLink="/daily-reports" routerLinkActive="active">
-          <i class="bi bi-clipboard-check"></i>
-          <span class="label">Compte-rendu journalier</span>
-        </a>
-
-        <!-- Vue 360° : visible une seule fois (Administration) -->
-
-        <div *ngIf="auth.hasRole('ROLE_ADMIN')">
-          <div class="nav-title" style="margin-top:10px">Administration</div>
-          <a class="navlink" routerLink="/admin/users" routerLinkActive="active">
-            <i class="bi bi-shield-lock"></i>
-            <span class="label">Utilisateurs</span>
-          </a>
-          <a class="navlink" routerLink="/admin/departments" routerLinkActive="active">
-            <i class="bi bi-building-gear"></i>
-            <span class="label">Départements</span>
-          </a>
-          <a class="navlink" routerLink="/admin/people-hub" routerLinkActive="active">
-            <i class="bi bi-people-fill"></i>
-            <span class="label">Vue 360° employés</span>
-          </a>
-          <a *ngIf="isAdmin()" class="navlink" routerLink="/settings" routerLinkActive="active">
-            <i class="bi bi-gear"></i>
-            <span class="label">Paramètres</span>
-          </a>
-        </div>
-      </div>
-    </aside>
-
-    <div class="flex-grow-1 d-flex flex-column" style="min-width: 0;">
+    <mat-sidenav-content>
       <div class="topbar">
-        <div class="d-flex align-items-center px-3" style="height: 68px;">
+        <mat-toolbar class="toolbar" color="transparent">
           <div class="title">
             <span class="crumb">ALTRACALL</span>
             <span class="sep">/</span>
             <span>{{pageTitle()}}</span>
           </div>
-          <div class="spacer"></div>
+          <span class="spacer"></span>
 
-          <a class="icon-btn me-2 position-relative" routerLink="/notifications" title="Notifications">
+          <a class="icon-btn" matTooltip="Notifications" routerLink="/notifications"
+             [matBadge]="unreadCount()" matBadgeColor="warn" [matBadgeHidden]="!unreadCount()" matBadgeOverlap="true">
             <i class="bi bi-bell"></i>
-            <span *ngIf="unreadCount()" class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger" style="font-size: 10px;">{{unreadCount()}}</span>
           </a>
 
-          <button class="icon-btn me-2" type="button" (click)="toggleUiMode()" [title]="uiMode() === 'dark' ? 'Mode clair' : 'Mode sombre'">
+          <button class="icon-btn" style="margin-left:10px" type="button" matTooltip="Basculer le thème" (click)="toggleUiMode()">
             <i class="bi" [ngClass]="uiMode() === 'dark' ? 'bi-sun' : 'bi-moon'"></i>
           </button>
 
-          <div class="dropdown" *ngIf="auth.me() as me">
-            <button class="pill dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <span class="avatar">{{initials()}}</span>
-              <span class="user-meta">
-                <span class="user-name">{{me.fullName}}</span>
-                <span class="user-role">{{roleLabel()}}</span>
-              </span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end" style="min-width: 220px;">
-              <li><a class="dropdown-item" routerLink="/profile"><i class="bi bi-person me-2"></i>Profil</a></li>
-              <li *ngIf="isAdmin()"><a class="dropdown-item" routerLink="/settings"><i class="bi bi-gear me-2"></i>Paramètres</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li><button class="dropdown-item" type="button" (click)="logout()"><i class="bi bi-box-arrow-right me-2"></i>Déconnexion</button></li>
-            </ul>
-          </div>
-        </div>
+          <button class="pill" style="margin-left:10px" *ngIf="auth.me() as me" [matMenuTriggerFor]="menu">
+            <span class="avatar">{{initials()}}</span>
+            <span class="user-meta">
+              <span class="user-name">{{me.fullName}}</span>
+              <span class="user-role">{{roleLabel()}}</span>
+            </span>
+          </button>
+
+          <mat-menu #menu="matMenu">
+            <button mat-menu-item routerLink="/profile"><i class="bi bi-person me-2"></i> Profil</button>
+            <button mat-menu-item *ngIf="isAdmin()" routerLink="/settings"><i class="bi bi-gear me-2"></i> Paramètres</button>
+            <mat-divider></mat-divider>
+            <button mat-menu-item (click)="logout()"><i class="bi bi-box-arrow-right me-2"></i> Déconnexion</button>
+          </mat-menu>
+        </mat-toolbar>
       </div>
 
       <div class="content">
@@ -290,16 +316,14 @@ import { NotificationItem } from '../../core/models';
           <router-outlet></router-outlet>
         </div>
       </div>
-    </div>
-  </div>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
   `
 })
 export class ShellComponent implements OnInit, OnDestroy {
   unreadCount = this.notifStore.unreadCount;
   pageTitle = signal<string>('Tableau de bord');
-  // Initialize with a stable value to avoid NG0100 on first render.
   routeAnimKey = signal<string>('dashboard');
-  // Light-first for maximum readability (users reported content not visible with dark tokens).
   uiMode = signal<'dark' | 'light'>('light');
   private stopSse: (() => void) | null = null;
 
@@ -313,16 +337,13 @@ export class ShellComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // Set the initial animation key synchronously (prevents ExpressionChangedAfterItHasBeenCheckedError)
-    // because the first navigation can happen in the same change-detection tick.
     this.routeAnimKey.set((this.router.url || '').replace(/^\//, '') || 'dashboard');
-    // UI mode (dark/light) — stored locally
+
     const saved = (localStorage.getItem('hrms-ui-mode') || 'light') as 'dark' | 'light';
     this.uiMode.set(saved);
     this.applyUiMode();
 
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
-      // Prefer route title (Routes.title), fallback to URL heuristics.
       const t = this.deepestTitle();
       if (t) this.pageTitle.set(t);
       else {
@@ -331,26 +352,21 @@ export class ShellComponent implements OnInit, OnDestroy {
         else this.pageTitle.set('Tableau de bord');
       }
 
-      // Update route animation key synchronously. Initial value is already set above.
       const urlKey = (this.router.url || '').replace(/^\//, '') || 'dashboard';
       this.routeAnimKey.set(urlKey);
     });
-    // Notifications (unread badge is derived from backend read/unread state)
+
     this.notifStore.start();
 
-    // Toast for live notifications
     this.stopSse = this.notif.subscribeMercure((n: NotificationItem) => {
       this.alert.toast({ icon: 'info', title: n.title, text: n.body });
     });
-     
   }
 
   ngOnDestroy(): void {
     if (this.stopSse) this.stopSse();
     this.notifStore.stop();
   }
-
-  // NOTE: routeKey(outlet) removed to avoid NG04012 + NG0100 issues.
 
   toggleUiMode(): void {
     const next = this.uiMode() === 'dark' ? 'light' : 'dark';
@@ -360,7 +376,6 @@ export class ShellComponent implements OnInit, OnDestroy {
   }
 
   private applyUiMode(): void {
-    // Tokens are handled in global CSS using [data-ui-mode].
     document.documentElement.setAttribute('data-ui-mode', this.uiMode());
   }
 
