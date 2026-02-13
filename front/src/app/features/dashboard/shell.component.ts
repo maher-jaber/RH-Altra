@@ -224,10 +224,7 @@ import { NotificationItem } from '../../core/models';
           <span class="label">Compte-rendu journalier</span>
         </a>
 
-        <a *ngIf="auth.hasRole('ROLE_HR') || auth.hasRole('ROLE_ADMIN')" class="navlink" routerLink="/rh/people-hub" routerLinkActive="active">
-          <i class="bi bi-people"></i>
-          <span class="label">Vue 360° employés</span>
-        </a>
+        <!-- Vue 360° : visible une seule fois (Administration) -->
 
         <div *ngIf="auth.hasRole('ROLE_ADMIN')">
           <div class="nav-title" style="margin-top:10px">Administration</div>
@@ -239,11 +236,6 @@ import { NotificationItem } from '../../core/models';
             <i class="bi bi-building-gear"></i>
             <span class="label">Départements</span>
           </a>
-          <a class="navlink" routerLink="/admin/team-calendar" routerLinkActive="active">
-            <i class="bi bi-calendar3"></i>
-            <span class="label">Calendrier équipe</span>
-          </a>
-
           <a class="navlink" routerLink="/admin/people-hub" routerLinkActive="active">
             <i class="bi bi-people-fill"></i>
             <span class="label">Vue 360° employés</span>

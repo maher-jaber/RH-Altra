@@ -6,7 +6,7 @@ import { DepartmentService } from '../../core/api/department.service';
 import { AlertService } from '../../core/ui/alert.service';
 import { AdminUser, Department } from '../../core/models';
 
-type UiRole = 'ROLE_EMPLOYEE' | 'ROLE_MANAGER' | 'ROLE_HR' | 'ROLE_ADMIN';
+type UiRole = 'ROLE_EMPLOYEE' | 'ROLE_MANAGER' | 'ROLE_ADMIN';
 
 @Component({
   standalone: true,
@@ -150,14 +150,14 @@ type UiRole = 'ROLE_EMPLOYEE' | 'ROLE_MANAGER' | 'ROLE_HR' | 'ROLE_ADMIN';
                 <label class="form-label">Manager principal</label>
                 <select class="form-select" formControlName="managerId">
                   <option value="">(Aucun)</option>
-                  <option *ngFor="let m of users()" [value]="m.id">{{ m.fullName || m.email }} — {{ m.email }}</option>
+                  <option *ngFor="let m of managers()" [value]="m.id">{{ m.fullName || m.email }} — {{ m.email }}</option>
                 </select>
               </div>
               <div class="col-12 col-lg-6">
                 <label class="form-label">Manager secondaire</label>
                 <select class="form-select" formControlName="manager2Id">
                   <option value="">(Aucun)</option>
-                  <option *ngFor="let m of users()" [value]="m.id">{{ m.fullName || m.email }} — {{ m.email }}</option>
+                  <option *ngFor="let m of managers()" [value]="m.id">{{ m.fullName || m.email }} — {{ m.email }}</option>
                 </select>
               </div>
             </div>
@@ -166,9 +166,8 @@ type UiRole = 'ROLE_EMPLOYEE' | 'ROLE_MANAGER' | 'ROLE_HR' | 'ROLE_ADMIN';
               <label class="form-label">Rôle</label>
               <select class="form-select" formControlName="role">
                 <option value="ROLE_EMPLOYEE">Employé</option>
-                <option value="ROLE_MANAGER">Manager</option>
-                <option value="ROLE_HR">RH</option>
-                <option value="ROLE_ADMIN">Admin</option>
+                <option value="ROLE_SUPERIOR">Manager</option>
+                                <option value="ROLE_ADMIN">Admin</option>
               </select>
               <div class="muted mt-1">Le rôle est envoyé au backend comme une liste (ex: [ROLE_ADMIN]).</div>
             </div>
@@ -196,6 +195,7 @@ type UiRole = 'ROLE_EMPLOYEE' | 'ROLE_MANAGER' | 'ROLE_HR' | 'ROLE_ADMIN';
 })
 export class AdminUsersPageComponent implements OnInit {
   users = signal<AdminUser[]>([]);
+  managers = signal<AdminUser[]>([]);
   pageIndex = signal(0);
   pageSize = signal(10);
   total = signal(0);
@@ -235,11 +235,14 @@ export class AdminUsersPageComponent implements OnInit {
 
   async reload(): Promise<void> {
     try {
-      const [res, deps] = await Promise.all([
+      const [res, deps, mgrs] = await Promise.all([
         this.api.list(this.pageIndex()+1, this.pageSize(), this.q()||undefined),
-        this.deptApi.list(1, 200)
+        this.deptApi.list(1, 200),
+        // Managers list must NOT be paginated, otherwise selects lose values on edit.
+        this.api.list(1, 2000)
       ]);
       this.users.set(res.items || []);
+      this.managers.set(mgrs.items || []);
       this.total.set(res.meta?.total ?? (res.items?.length||0));
       this.departments.set(deps.items || []);
     } catch {

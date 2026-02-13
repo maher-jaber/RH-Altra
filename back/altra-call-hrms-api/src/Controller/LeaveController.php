@@ -113,6 +113,7 @@ class LeaveController extends ApiBase
         $l->setCreatedByApiKey($user->getApiKey());
         $l->setUser($user);
         $l->setManager($user->getManager());
+        $l->setManager2($user->getManager2());
         $l->setType($type);
         $l->setStartDate($start);
         $l->setEndDate($end);
@@ -175,9 +176,14 @@ class LeaveController extends ApiBase
             $this->em->flush();
         }
 
-        // Notify manager (in-app + mercure + email)
-        $manager = $l->getManager();
-        if ($manager) {
+        // Notify managers (manager1 + manager2), in-app + mercure + (optional) email
+        $managers = array_filter([$l->getManager(), $l->getManager2()]);
+        $sent = [];
+        foreach ($managers as $manager) {
+            if (!$manager) { continue; }
+            if (in_array($manager->getId(), $sent, true)) { continue; }
+            $sent[] = $manager->getId();
+
             $n = new Notification();
             $n->setUser($manager);
             $n->setTitle('Demande de congé · ' . ($user->getFullName() ?: $user->getEmail()));

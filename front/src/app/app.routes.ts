@@ -2,7 +2,6 @@ import { Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
-import { hrGuard } from './core/guards/hr.guard';
 
 import { LoginPageComponent } from './features/auth/login.page';
 import { ForgotPasswordPageComponent } from './features/auth/forgot-password.page';
@@ -17,7 +16,6 @@ import { LeaveMyPageComponent } from './features/leave/leave-my.page';
 
 // Congés (nouveau module)
 import { LeaveDashboardPage } from './features/leaves/leave-dashboard.page';
-import { LeaveTeamCalendarPage } from './features/leaves/leave-team-calendar.page';
 import { LeaveCalendarPage } from './features/leaves/leave-calendar.page';
 import { LeavePendingHrPage } from './features/leaves/leave-pending-hr.page';
 import { LeavePendingManagerPage } from './features/leaves/leave-pending-manager.page';
@@ -57,11 +55,9 @@ export const APP_ROUTES: Routes = [
       { path: 'leaves/detail/:id', component: LeaveDetailPage, title: 'Détail congé' },
       { path: 'leaves/my', component: LeaveMyPageComponent, title: 'Mes demandes de congé' },
       { path: 'leaves/pending-manager', component: LeavePendingManagerPage, title: 'Validation congés · Manager' },
-      { path: 'leaves/pending-hr', component: LeavePendingHrPage, canActivate: [hrGuard], title: 'Validation congés · RH' },
+      { path: 'leaves/pending-hr', component: LeavePendingHrPage, canActivate: [adminGuard], title: 'Validation congés · RH' },
       { path: 'leaves/calendar', component: LeaveCalendarPage, title: 'Calendrier congés' },
       // Team calendar is an admin tool (also linked from Settings)
-      { path: 'admin/team-calendar', component: LeaveTeamCalendarPage, canActivate: [adminGuard], title: 'Administration · Calendrier équipe' },
-
 
       // Congés (ancienne démo conservée)
       { path: 'leave/new', component: LeaveNewPageComponent, title: 'Nouvelle demande de congé' },
@@ -78,8 +74,7 @@ export const APP_ROUTES: Routes = [
       { path: 'profile', component: ProfilePage, title: 'Mon profil' },
 
       // People hub (Admin / RH)
-      { path: 'rh/people-hub', component: PeopleHubPage, canActivate: [hrGuard], title: 'RH · Vue 360° employés' },
-      { path: 'admin/people-hub', component: PeopleHubPage, canActivate: [hrGuard], title: 'Administration · Vue 360° employés' },
+      { path: 'admin/people-hub', component: PeopleHubPage, canActivate: [adminGuard], title: 'Administration · Vue 360° employés' },
 
       { path: 'admin/users', component: AdminUsersPageComponent, canActivate: [adminGuard], title: 'Administration · Utilisateurs' },
       { path: 'admin/departments', component: AdminDepartmentsPage, canActivate: [adminGuard], title: 'Administration · Départements' },

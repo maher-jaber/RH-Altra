@@ -28,10 +28,6 @@ import { AlertService } from '../../core/ui/alert.service';
           <h5 class="mb-1">Outils</h5>
           <div class="text-muted" style="font-size:13px">Accès rapide à des écrans d'administration.</div>
         </div>
-        <a class="btn btn-outline-primary" routerLink="/admin/team-calendar">
-          <i class="bi bi-calendar3 me-1"></i>
-          Calendrier équipe
-        </a>
       </div>
     </div>
 

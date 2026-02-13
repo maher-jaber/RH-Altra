@@ -98,7 +98,6 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
             <div class="mt-2 text-muted">Créer, suivre, valider (manager → RH) et consulter l’historique.</div>
             <div class="mt-3 d-flex gap-2 flex-wrap">
               <a class="btn btn-sm btn-outline-primary" routerLink="/leaves/my">Mes demandes</a>
-              <a class="btn btn-sm btn-outline-secondary" routerLink="/admin/team-calendar" *ngIf="auth.hasRole('ROLE_ADMIN')">Calendrier équipe</a>
             </div>
           </div>
         </div>

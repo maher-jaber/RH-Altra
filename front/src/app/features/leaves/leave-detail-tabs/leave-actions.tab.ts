@@ -62,10 +62,10 @@ export class LeaveActionsTab implements OnInit{
   canAct(){
     const lr = this.leave();
     if(!lr) return false;
-    const isAdmin = this.auth.hasRole('ROLE_ADMIN');
     const isManager = this.auth.hasRole('ROLE_SUPERIOR') && (lr.manager?.id === this.meId());
-    if(isManager && lr.status === 'SUBMITTED') return true;
-    if(isAdmin && lr.status === 'MANAGER_APPROVED') return true;
+    const isManager2 = this.auth.hasRole('ROLE_SUPERIOR') && (lr.manager2?.id === this.meId());
+    const alreadySigned = (!!lr.managerSignedAt && isManager) || (!!lr.manager2SignedAt && isManager2);
+    if((isManager || isManager2) && lr.status === 'SUBMITTED' && !alreadySigned) return true;
     return false;
   }
 
@@ -73,11 +73,7 @@ export class LeaveActionsTab implements OnInit{
     const lr = this.leave(); if(!lr) return;
     this.loading.set(true); this.msg.set('');
     try{
-      if(this.auth.hasRole('ROLE_ADMIN')) {
-        await this.api.hrApprove(lr.id, this.comment || undefined);
-      } else {
-        await this.api.managerApprove(lr.id, this.comment || undefined);
-      }
+      await this.api.managerApprove(lr.id, this.comment || undefined);
       await this.reload();
       this.msg.set('Action effectuée.');
     } finally { this.loading.set(false); }

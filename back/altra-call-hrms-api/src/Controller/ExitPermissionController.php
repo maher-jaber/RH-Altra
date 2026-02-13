@@ -101,6 +101,7 @@ class ExitPermissionController extends ApiBase
         $e = new ExitPermission();
         $e->setUser($user);
         $e->setManager($user->getManager());
+        $e->setManager2($user->getManager2());
         $e->setStartAt($startAt);
         $e->setEndAt($endAt);
         $e->setReason(isset($data['reason']) ? (string)$data['reason'] : null);
@@ -120,35 +121,62 @@ class ExitPermissionController extends ApiBase
         #[Route('/api/exit-permissions/pending', methods:['GET'])]
     public function pending(Request $r): JsonResponse {
         $token = $this->requireUser($r);
-        if (!in_array('ROLE_ADMIN', $token->roles ?? [], true)) {
+        $me = $this->getCurrentUser($r);
+
+        $isAdmin = $this->hasRole($token, 'ROLE_ADMIN');
+        $isManager = $this->hasRole($token, 'ROLE_SUPERIOR');
+        if (!$isAdmin && !$isManager) {
             return $this->json(['error'=>'forbidden'],403);
         }
 
         $pg = $this->parsePagination($r);
-
-        if (!$pg['enabled']) {
-            $items = $this->em->getRepository(ExitPermission::class)->findBy(['status'=>ExitPermission::STATUS_SUBMITTED], ['id'=>'DESC']);
-            return $this->jsonOk(['items'=>array_map([$this,'serialize'], $items)]);
-        }
+        $st1 = ExitPermission::STATUS_SUBMITTED;
+        $st2 = ExitPermission::STATUS_MANAGER_APPROVED;
 
         $qb = $this->em->createQueryBuilder()
             ->select('ep')
             ->from(ExitPermission::class, 'ep')
-            ->where('ep.status = :st')
-            ->setParameter('st', ExitPermission::STATUS_SUBMITTED)
-            ->orderBy('ep.id', 'DESC')
-            ->setFirstResult($pg['offset'])
-            ->setMaxResults($pg['limit']);
-
-        $items = $qb->getQuery()->getResult();
+            ->orderBy('ep.id', 'DESC');
 
         $countQb = $this->em->createQueryBuilder()
             ->select('COUNT(ep2.id)')
-            ->from(ExitPermission::class, 'ep2')
-            ->where('ep2.status = :st')
-            ->setParameter('st', ExitPermission::STATUS_SUBMITTED);
+            ->from(ExitPermission::class, 'ep2');
 
+        if ($isAdmin) {
+            $qb->where('ep.status IN (:sts)')
+                ->setParameter('sts', [$st1, $st2]);
+            $countQb->where('ep2.status IN (:sts)')
+                ->setParameter('sts', [$st1, $st2]);
+        } else {
+            $qb->where('ep.status IN (:sts)')
+                ->andWhere('(
+                    (ep.manager = :me AND ep.managerSignedAt IS NULL)
+                    OR
+                    (ep.manager2 = :me AND ep.manager2SignedAt IS NULL)
+                )')
+                ->setParameter('sts', [$st1, $st2])
+                ->setParameter('me', $me);
+
+            $countQb->where('ep2.status IN (:sts)')
+                ->andWhere('(
+                    (ep2.manager = :me AND ep2.managerSignedAt IS NULL)
+                    OR
+                    (ep2.manager2 = :me AND ep2.manager2SignedAt IS NULL)
+                )')
+                ->setParameter('sts', [$st1, $st2])
+                ->setParameter('me', $me);
+        }
+
+        if ($pg['enabled']) {
+            $qb->setFirstResult($pg['offset'])->setMaxResults($pg['limit']);
+        }
+
+        $items = $qb->getQuery()->getResult();
         $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
+        if (!$pg['enabled']) {
+            return $this->jsonOk(['items'=>array_map([$this,'serialize'], $items)]);
+        }
 
         return $this->jsonOk([
             'items'=>array_map([$this,'serialize'], $items),
@@ -171,10 +199,13 @@ class ExitPermissionController extends ApiBase
         $e = $this->em->getRepository(ExitPermission::class)->find($id);
         if (!$e) return $this->json(['error' => 'not_found'], 404);
 
-        if (!$this->hasRole($u, 'ROLE_ADMIN') && $e->getManager()?->getId() !== $me->getId()) {
+        $isAdmin = $this->hasRole($u, 'ROLE_ADMIN');
+        $isMgr1 = $e->getManager()?->getId() === $me->getId();
+        $isMgr2 = $e->getManager2()?->getId() === $me->getId();
+        if (!$isAdmin && !$isMgr1 && !$isMgr2) {
             return $this->json(['error' => 'forbidden'], 403);
         }
-        if ($e->getStatus() !== ExitPermission::STATUS_SUBMITTED) {
+        if (!in_array($e->getStatus(), [ExitPermission::STATUS_SUBMITTED, ExitPermission::STATUS_MANAGER_APPROVED], true)) {
             return $this->json(['error' => 'invalid_status'], 400);
         }
 
@@ -184,8 +215,37 @@ class ExitPermissionController extends ApiBase
             return $this->json(['error' => 'decision_required'], 400);
         }
 
-        $e->setStatus($decision === 'APPROVE' ? ExitPermission::STATUS_APPROVED : ExitPermission::STATUS_REJECTED);
-        $this->em->flush();
+        $comment = isset($data['comment']) ? trim((string)$data['comment']) : null;
+        $now = new \DateTimeImmutable();
+
+        if ($decision === 'REJECT') {
+            if ($isMgr2 && !$isAdmin) {
+                $e->setManager2SignedAt($now);
+                $e->setManager2Comment($comment);
+            } else {
+                $e->setManagerSignedAt($now);
+                $e->setManagerComment($comment);
+            }
+            $e->setStatus(ExitPermission::STATUS_REJECTED);
+            $this->em->flush();
+        } else {
+            if ($isMgr2 && !$isAdmin) {
+                if ($e->getManager2SignedAt()) { return $this->json(['error'=>'already_signed'],400); }
+                $e->setManager2SignedAt($now);
+                $e->setManager2Comment($comment);
+            } else {
+                if ($e->getManagerSignedAt()) { return $this->json(['error'=>'already_signed'],400); }
+                $e->setManagerSignedAt($now);
+                $e->setManagerComment($comment);
+            }
+
+            if ($e->isFullyApproved()) {
+                $e->setStatus(ExitPermission::STATUS_APPROVED);
+            } else {
+                $e->setStatus(ExitPermission::STATUS_MANAGER_APPROVED);
+            }
+            $this->em->flush();
+        }
 
         return $this->jsonOk($this->serialize($e));
     }
@@ -204,6 +264,15 @@ class ExitPermissionController extends ApiBase
                 'fullName' => $e->getManager()?->getFullName(),
                 'email' => $e->getManager()?->getEmail(),
             ] : null,
+            'manager2' => $e->getManager2() ? [
+                'id' => $e->getManager2()?->getId(),
+                'fullName' => $e->getManager2()?->getFullName(),
+                'email' => $e->getManager2()?->getEmail(),
+            ] : null,
+            'managerSignedAt' => $e->getManagerSignedAt()?->format('c'),
+            'managerComment' => $e->getManagerComment(),
+            'manager2SignedAt' => $e->getManager2SignedAt()?->format('c'),
+            'manager2Comment' => $e->getManager2Comment(),
             'startAt' => $e->getStartAt()->format('c'),
             'endAt' => $e->getEndAt()->format('c'),
             'reason' => $e->getReason(),

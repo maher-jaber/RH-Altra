@@ -124,33 +124,41 @@ class DailyReportController extends ApiBase
         $u = $this->requireUser($request);
         $me = $this->getCurrentUser($request);
 
+        // Managers (ROLE_SUPERIOR) should see reports of their team.
+        // Admins can also see their team; and can pass ?scope=all to see everything.
         $allowed = in_array('ROLE_SUPERIOR', $u->roles ?? [], true) || in_array('ROLE_ADMIN', $u->roles ?? [], true);
         if (!$allowed) return $this->json(['error'=>'forbidden'],403);
 
         $pg = $this->parsePagination($request);
-
-        if (!$pg['enabled']) {
-            $rows = $this->em->getRepository(DailyReport::class)
-                ->findBy(['manager' => $me], ['id' => 'DESC']);
-            return $this->jsonOk(['items' => array_map([$this,'serialize'], $rows)]);
-        }
+        $scopeAll = in_array('ROLE_ADMIN', $u->roles ?? [], true) && ((string)$request->query->get('scope') === 'all');
 
         $qb = $this->em->createQueryBuilder()
-            ->select('dr')
+            ->select('dr, eu')
             ->from(DailyReport::class, 'dr')
-            ->where('dr.manager = :m')
-            ->setParameter('m', $me)
-            ->orderBy('dr.id', 'DESC')
-            ->setFirstResult($pg['offset'])
-            ->setMaxResults($pg['limit']);
+            ->leftJoin('dr.user', 'eu')->addSelect('eu')
+            ->orderBy('dr.id', 'DESC');
+
+        if (!$scopeAll) {
+            // Team = employees whose manager OR manager2 is me
+            $qb->andWhere('(eu.manager = :m OR eu.manager2 = :m)')
+               ->setParameter('m', $me);
+        }
+
+        if ($pg['enabled']) {
+            $qb->setFirstResult($pg['offset'])->setMaxResults($pg['limit']);
+        }
 
         $rows = $qb->getQuery()->getResult();
 
         $countQb = $this->em->createQueryBuilder()
             ->select('COUNT(dr2.id)')
             ->from(DailyReport::class, 'dr2')
-            ->where('dr2.manager = :m')
-            ->setParameter('m', $me);
+            ->leftJoin('dr2.user', 'eu2');
+
+        if (!$scopeAll) {
+            $countQb->where('(eu2.manager = :m OR eu2.manager2 = :m)')
+                    ->setParameter('m', $me);
+        }
 
         $total = (int)$countQb->getQuery()->getSingleScalarResult();
 

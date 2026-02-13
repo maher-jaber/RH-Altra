@@ -158,6 +158,7 @@ class AdvanceRequestController extends ApiBase
         $a = new AdvanceRequest();
         $a->setUser($user);
         $a->setManager($user->getManager());
+        $a->setManager2($user->getManager2());
         $a->setAmount($amount);
         $a->setCurrency((string)($data['currency'] ?? 'TND'));
         $a->setReason(isset($data['reason']) ? (string)$data['reason'] : null);
@@ -174,87 +175,120 @@ class AdvanceRequestController extends ApiBase
 
                 }
 
-        // Notify manager only when the request is actually submitted
-        if ($a->getStatus() === AdvanceRequest::STATUS_SUBMITTED && $a->getManager()) {
-            $mgr = $a->getManager();
-            $n = new Notification();
-            $n->setUser($mgr);
-            $n->setTitle('Avance · Nouvelle demande (' . $periodLabel . ')');
-            $n->setActionUrl('/advances/detail/' . $a->getId());
-            $n->setPayload($this->serialize($a));
-            $n->setBody('Période: ' . $periodLabel . ' · Montant: ' . $a->getAmount() . ' ' . $a->getCurrency() . ' · Statut: ' . $a->getStatus());
-            $n->setType('ADVANCE');
-            $this->em->persist($n);
-            $this->em->flush();
+        // Notify manager(s) only when the request is actually submitted (manager1 + manager2)
+        if ($a->getStatus() === AdvanceRequest::STATUS_SUBMITTED) {
+            $recipients = [];
+            if ($a->getManager()) { $recipients[$a->getManager()->getId()] = $a->getManager(); }
+            if ($a->getManager2()) { $recipients[$a->getManager2()->getId()] = $a->getManager2(); }
 
-            $this->bus->dispatch(new PublishNotificationMessage(
-                recipientApiKey: $mgr->getApiKey(),
-                title: $n->getTitle(),
-                body: (string)$n->getBody(),
-                type: $n->getType(),
-                notificationId: (string)$n->getId(),
-                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
-                actionUrl: $n->getActionUrl(),
-                payload: $n->getPayload()
-            ));
+            foreach ($recipients as $mgr) {
+                $n = new Notification();
+                $n->setUser($mgr);
+                $n->setTitle('Avance · Nouvelle demande (' . $periodLabel . ')');
+                $n->setActionUrl('/advances/detail/' . $a->getId());
+                $n->setPayload($this->serialize($a));
+                $n->setBody('Période: ' . $periodLabel . ' · Montant: ' . $a->getAmount() . ' ' . $a->getCurrency() . ' · Statut: ' . $a->getStatus());
+                $n->setType('ADVANCE');
+                $this->em->persist($n);
+                $this->em->flush();
 
-            try {
-                $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
-                $url = rtrim($base,'/') . '/advances/detail/' . $a->getId();
-                $emp = $a->getUser();
-                $empName = $emp ? ($emp->getFullName() ?: $emp->getEmail()) : '—';
-                $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
-                    . '<h2 style="margin:0 0 12px 0">Nouvelle demande d\'avance</h2>'
-                    . '<table style="border-collapse:collapse;width:100%;max-width:680px">'
-                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa;width:180px"><b>Employé</b></td><td style="padding:8px 10px;border:1px solid #eee">'.htmlspecialchars($empName,ENT_QUOTES).'</td></tr>'
-                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Période</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$periodLabel.'</td></tr>'
-                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Montant</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getAmount().' '.$a->getCurrency().'</td></tr>'
-                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Statut</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getStatus().'</td></tr>'
-                    . '</table>'
-                    . '<p style="margin:20px 0"><a href="'.htmlspecialchars($url,ENT_QUOTES).'" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Ouvrir la demande</a></p>'
-                    . '<p style="opacity:.7;font-size:12px;margin-top:18px">ALTRA HRMS · Notification automatique</p>'
-                    . '</div>';
-                if($this->settings->canSendEmail($mgr,'ADVANCE')) { $this->mailer->notify($mgr->getEmail(), 'Nouvelle demande d\'avance', $html); }
-            } catch (\Throwable) { /* best-effort */ }
+                $this->bus->dispatch(new PublishNotificationMessage(
+                    recipientApiKey: $mgr->getApiKey(),
+                    title: $n->getTitle(),
+                    body: (string)$n->getBody(),
+                    type: $n->getType(),
+                    notificationId: (string)$n->getId(),
+                    createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                    actionUrl: $n->getActionUrl(),
+                    payload: $n->getPayload()
+                ));
+
+                try {
+                    $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+                    $url = rtrim($base,'/') . '/advances/detail/' . $a->getId();
+                    $emp = $a->getUser();
+                    $empName = $emp ? ($emp->getFullName() ?: $emp->getEmail()) : '—';
+                    $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
+                        . '<h2 style="margin:0 0 12px 0">Nouvelle demande d\'avance</h2>'
+                        . '<table style="border-collapse:collapse;width:100%;max-width:680px">'
+                        . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa;width:180px"><b>Employé</b></td><td style="padding:8px 10px;border:1px solid #eee">'.htmlspecialchars($empName,ENT_QUOTES).'</td></tr>'
+                        . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Période</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$periodLabel.'</td></tr>'
+                        . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Montant</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getAmount().' '.$a->getCurrency().'</td></tr>'
+                        . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Statut</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getStatus().'</td></tr>'
+                        . '</table>'
+                        . '<p style="margin:20px 0"><a href="'.htmlspecialchars($url,ENT_QUOTES).'" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Ouvrir la demande</a></p>'
+                        . '<p style="opacity:.7;font-size:12px;margin-top:18px">ALTRA HRMS · Notification automatique</p>'
+                        . '</div>';
+                    if ($this->settings->canSendEmail($mgr, 'ADVANCE')) { $this->mailer->notify($mgr->getEmail(), 'Nouvelle demande d\'avance', $html); }
+                } catch (\Throwable) { /* best-effort */ }
+            }
         }
 
         return $this->jsonOk($this->serialize($a), 201);
     }
 
-        #[Route('/api/advances/pending', methods: ['GET'])]
+    #[Route('/api/advances/pending', methods: ['GET'])]
     public function pending(Request $request): JsonResponse
     {
         $token = $this->requireUser($request);
-        if (!in_array('ROLE_ADMIN', $token->roles ?? [], true)) {
+        $me = $this->getCurrentUser($request);
+
+        $isAdmin = $this->hasRole($token, 'ROLE_ADMIN');
+        $isManager = $this->hasRole($token, 'ROLE_SUPERIOR');
+        if (!$isAdmin && !$isManager) {
             return $this->json(['error' => 'forbidden'], 403);
         }
 
         $pg = $this->parsePagination($request);
 
-        if (!$pg['enabled']) {
-            $rows = $this->em->getRepository(AdvanceRequest::class)
-                ->findBy(['status' => AdvanceRequest::STATUS_SUBMITTED], ['id' => 'DESC']);
-            return $this->jsonOk(array_map(fn(AdvanceRequest $a) => $this->serialize($a), $rows));
-        }
+        $st1 = AdvanceRequest::STATUS_SUBMITTED;
+        $st2 = AdvanceRequest::STATUS_MANAGER_APPROVED;
 
         $qb = $this->em->createQueryBuilder()
             ->select('a')
             ->from(AdvanceRequest::class, 'a')
-            ->where('a.status = :st')
-            ->setParameter('st', AdvanceRequest::STATUS_SUBMITTED)
-            ->orderBy('a.id', 'DESC')
-            ->setFirstResult($pg['offset'])
-            ->setMaxResults($pg['limit']);
-
-        $rows = $qb->getQuery()->getResult();
+            ->orderBy('a.id', 'DESC');
 
         $countQb = $this->em->createQueryBuilder()
             ->select('COUNT(a2.id)')
-            ->from(AdvanceRequest::class, 'a2')
-            ->where('a2.status = :st')
-            ->setParameter('st', AdvanceRequest::STATUS_SUBMITTED);
+            ->from(AdvanceRequest::class, 'a2');
 
+        if ($isAdmin) {
+            $qb->where('a.status IN (:sts)')
+                ->setParameter('sts', [$st1, $st2]);
+            $countQb->where('a2.status IN (:sts)')
+                ->setParameter('sts', [$st1, $st2]);
+        } else {
+            // Manager sees only items that still need THEIR signature (manager1 OR manager2)
+            $qb->where('a.status IN (:sts)')
+                ->andWhere('(
+                    (a.manager = :me AND a.managerSignedAt IS NULL)
+                    OR
+                    (a.manager2 = :me AND a.manager2SignedAt IS NULL)
+                )')
+                ->setParameter('sts', [$st1, $st2])
+                ->setParameter('me', $me);
+
+            $countQb->where('a2.status IN (:sts)')
+                ->andWhere('(
+                    (a2.manager = :me AND a2.managerSignedAt IS NULL)
+                    OR
+                    (a2.manager2 = :me AND a2.manager2SignedAt IS NULL)
+                )')
+                ->setParameter('sts', [$st1, $st2])
+                ->setParameter('me', $me);
+        }
+
+        if ($pg['enabled']) {
+            $qb->setFirstResult($pg['offset'])->setMaxResults($pg['limit']);
+        }
+
+        $rows = $qb->getQuery()->getResult();
         $total = (int)$countQb->getQuery()->getSingleScalarResult();
+
+        if (!$pg['enabled']) {
+            return $this->jsonOk(array_map(fn(AdvanceRequest $a) => $this->serialize($a), $rows));
+        }
 
         return $this->jsonOk([
             'items' => array_map(fn(AdvanceRequest $a) => $this->serialize($a), $rows),
@@ -262,8 +296,8 @@ class AdvanceRequestController extends ApiBase
                 'page' => $pg['page'],
                 'limit' => $pg['limit'],
                 'total' => $total,
-                'pages' => (int)ceil($total / max(1,$pg['limit'])),
-            ]
+                'pages' => (int)ceil($total / max(1, $pg['limit'])),
+            ],
         ]);
     }
 
@@ -277,10 +311,13 @@ class AdvanceRequestController extends ApiBase
         $a = $this->em->getRepository(AdvanceRequest::class)->find($id);
         if (!$a) return $this->json(['error' => 'not_found'], 404);
 
-        if (!$this->hasRole($u, 'ROLE_ADMIN') && $a->getManager()?->getId() !== $me->getId()) {
+        $isAdmin = $this->hasRole($u, 'ROLE_ADMIN');
+        $isMgr1 = $a->getManager()?->getId() === $me->getId();
+        $isMgr2 = $a->getManager2()?->getId() === $me->getId();
+        if (!$isAdmin && !$isMgr1 && !$isMgr2) {
             return $this->json(['error' => 'forbidden'], 403);
         }
-        if ($a->getStatus() !== AdvanceRequest::STATUS_SUBMITTED) {
+        if (!in_array($a->getStatus(), [AdvanceRequest::STATUS_SUBMITTED, AdvanceRequest::STATUS_MANAGER_APPROVED], true)) {
             return $this->json(['error' => 'invalid_status'], 400);
         }
 
@@ -290,20 +327,81 @@ class AdvanceRequestController extends ApiBase
             return $this->json(['error' => 'decision_required'], 400);
         }
 
-        $a->setStatus($decision === 'APPROVE' ? AdvanceRequest::STATUS_APPROVED : AdvanceRequest::STATUS_REJECTED);
-        $this->em->flush();
+        $comment = isset($data['comment']) ? trim((string)$data['comment']) : null;
+        $now = new \DateTimeImmutable();
+
+        if ($decision === 'REJECT') {
+            if ($isMgr2 && !$isAdmin) {
+                $a->setManager2SignedAt($now);
+                $a->setManager2Comment($comment);
+            } else {
+                // admin can reject as well -> store on managerComment for trace
+                $a->setManagerSignedAt($now);
+                $a->setManagerComment($comment);
+            }
+            $a->setStatus(AdvanceRequest::STATUS_REJECTED);
+            $this->em->flush();
+        } else {
+            if ($isMgr2 && !$isAdmin) {
+                if ($a->getManager2SignedAt()) {
+                    return $this->json(['error' => 'already_signed'], 400);
+                }
+                $a->setManager2SignedAt($now);
+                $a->setManager2Comment($comment);
+            } else {
+                if ($a->getManagerSignedAt()) {
+                    return $this->json(['error' => 'already_signed'], 400);
+                }
+                $a->setManagerSignedAt($now);
+                $a->setManagerComment($comment);
+            }
+
+            if ($a->isFullyApproved()) {
+                $a->setStatus(AdvanceRequest::STATUS_APPROVED);
+                $this->em->flush();
+            } else {
+                $a->setStatus(AdvanceRequest::STATUS_MANAGER_APPROVED);
+                $this->em->flush();
+
+                // Notify the other manager if still pending
+                $next = null;
+                if ($a->getManager() && $a->getManagerSignedAt() === null) $next = $a->getManager();
+                if ($a->getManager2() && $a->getManager2SignedAt() === null) $next = $a->getManager2();
+                if ($next) {
+                    $n = new Notification();
+                    $n->setUser($next);
+                    $n->setTitle('Avance · Validation requise');
+                    $n->setActionUrl('/advances/detail/' . $a->getId());
+                    $n->setPayload($this->serialize($a));
+                    $n->setBody('Une demande d\'avance attend votre validation (double validation requise).');
+                    $n->setType('ADVANCE');
+                    $this->em->persist($n);
+                    $this->em->flush();
+                    $this->bus->dispatch(new PublishNotificationMessage(
+                        recipientApiKey: $next->getApiKey(),
+                        title: $n->getTitle(),
+                        body: (string)$n->getBody(),
+                        type: $n->getType(),
+                        notificationId: (string)$n->getId(),
+                        createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                        actionUrl: $n->getActionUrl(),
+                        payload: $n->getPayload()
+                    ));
+                }
+            }
+        }
 
         $periodLabel = sprintf('%02d/%04d', $a->getPeriodMonth(), $a->getPeriodYear());
 
-        // Notify employee about the decision
-        if ($a->getUser()) {
+        // Notify employee only for final decision (APPROVED or REJECTED)
+        if ($a->getUser() && in_array($a->getStatus(), [AdvanceRequest::STATUS_APPROVED, AdvanceRequest::STATUS_REJECTED], true)) {
             $emp = $a->getUser();
             $n = new Notification();
             $n->setUser($emp);
             $n->setTitle('Avance · Décision (' . $periodLabel . ')');
             $n->setActionUrl('/advances/detail/' . $a->getId());
             $n->setPayload($this->serialize($a));
-            $n->setBody($a->getStatus() === AdvanceRequest::STATUS_APPROVED ? 'Votre demande d\'avance a été approuvée.' : 'Votre demande d\'avance a été refusée.');
+            $n->setBody($a->getStatus() === AdvanceRequest::STATUS_APPROVED ? 'Votre demande d\'avance a été approuvée (double validation).' : 'Votre demande d\'avance a été refusée.');
             $n->setType('ADVANCE');
             $this->em->persist($n);
             $this->em->flush();
@@ -356,6 +454,15 @@ class AdvanceRequestController extends ApiBase
                 'fullName' => $a->getManager()?->getFullName(),
                 'email' => $a->getManager()?->getEmail(),
             ] : null,
+            'manager2' => $a->getManager2() ? [
+                'id' => $a->getManager2()?->getId(),
+                'fullName' => $a->getManager2()?->getFullName(),
+                'email' => $a->getManager2()?->getEmail(),
+            ] : null,
+            'managerSignedAt' => $a->getManagerSignedAt()?->format('c'),
+            'manager2SignedAt' => $a->getManager2SignedAt()?->format('c'),
+            'managerComment' => $a->getManagerComment(),
+            'manager2Comment' => $a->getManager2Comment(),
             'amount' => $a->getAmount(),
             'currency' => $a->getCurrency(),
             'reason' => $a->getReason(),

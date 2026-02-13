@@ -65,8 +65,11 @@ function fmtYmd(d: Date): string {
     <div class="col-12 col-md-4">
       <div class="kpi">
         <div>
-          <div class="label">Période</div>
-          <div class="value">{{monthTitle()}}</div>
+          <div class="label">Période (mois / année)</div>
+          <div class="d-flex align-items-center gap-2">
+            <input class="form-control form-control-sm" type="month" style="max-width:180px" [ngModel]="monthInput()" (ngModelChange)="setMonthFromInput($event)" />
+            <div class="value" style="text-transform:capitalize">{{monthTitle()}}</div>
+          </div>
         </div>
         <div class="d-flex gap-1">
           <button class="btn btn-sm btn-outline-secondary" (click)="prevMonth()"><i class="bi bi-chevron-left"></i></button>
@@ -263,6 +266,12 @@ export class PeopleHubPage implements OnInit {
 
   // calendar
   month = signal<Date>(startOfMonth(new Date()));
+
+  monthInput = computed(() => {
+    const d = this.month();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${m}`;
+  });
   calendarEvents = signal<HrCalendarEvent[]>([]);
   loadingCalendar = signal(false);
 
@@ -339,6 +348,14 @@ export class PeopleHubPage implements OnInit {
 
   prevMonth(): void { this.month.set(addMonths(this.month(), -1)); this.reloadAll(); }
   nextMonth(): void { this.month.set(addMonths(this.month(), 1)); this.reloadAll(); }
+
+  setMonthFromInput(value: string): void {
+    if (!value) return;
+    const [y, m] = value.split('-').map(v => Number(v));
+    if (!y || !m) return;
+    this.month.set(new Date(y, m - 1, 1));
+    this.reloadAll();
+  }
 
   async reloadAll(): Promise<void> {
     await Promise.all([
