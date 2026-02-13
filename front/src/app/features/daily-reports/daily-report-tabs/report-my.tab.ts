@@ -1,13 +1,16 @@
 import { Component, Input, OnChanges, SimpleChanges, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+
+import { DailyReportDetailDialog } from '../daily-report-detail.dialog';
 
 import { DailyReportService } from '../../../core/api/daily-report.service';
 
 @Component({
   standalone: true,
   selector: 'app-daily-report-my-tab',
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, MatDialogModule],
   template: `
     <div class="p-2 p-md-3">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -43,7 +46,7 @@ import { DailyReportService } from '../../../core/api/daily-report.service';
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let r of items()">
+                <tr *ngFor="let r of items()" class="row-click" (click)="open(r)">
                   <td class="fw-semibold">{{r.date | date:'mediumDate'}}</td>
                   <td>
                     <div class="text-truncate" style="max-width:640px">{{r.tasks}}</div>
@@ -67,7 +70,7 @@ import { DailyReportService } from '../../../core/api/daily-report.service';
       </div>
     </div>
   `,
-  styles: [`.muted{opacity:.75;font-size:12px}`]
+  styles: [`.muted{opacity:.75;font-size:12px}`, `.row-click{cursor:pointer}`]
 })
 export class DailyReportMyTab implements OnChanges {
   @Input() refreshKey = 0;
@@ -77,7 +80,7 @@ export class DailyReportMyTab implements OnChanges {
   total = signal(0);
   items = signal<any[]>([]);
 
-  constructor(private api: DailyReportService) {
+  constructor(private api: DailyReportService, private dialog: MatDialog) {
     void this.load();
   }
 
@@ -85,6 +88,24 @@ export class DailyReportMyTab implements OnChanges {
     if (changes['refreshKey'] && !changes['refreshKey'].firstChange) {
       this.pageIndex.set(0);
       void this.load();
+    }
+  }
+
+  async open(r: any) {
+    try {
+      const full = await this.api.get(r.id);
+      this.dialog.open(DailyReportDetailDialog, {
+        width: "720px",
+        maxWidth: "92vw",
+        data: { report: full }
+      });
+    } catch {
+      // fallback: open what we have
+      this.dialog.open(DailyReportDetailDialog, {
+        width: "720px",
+        maxWidth: "92vw",
+        data: { report: r }
+      });
     }
   }
 

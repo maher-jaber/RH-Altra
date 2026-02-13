@@ -62,11 +62,24 @@ class LeaveController extends ApiBase
         }
 
         $today = new \DateTimeImmutable('today');
-        if ($start < $today || $end < $today) {
-            return $this->json(['error' => 'past_dates'], 400);
+
+        // Past dates can be allowed via settings (useful for back-office regularization)
+        if (!$this->settings->leaveAllowPastDates()) {
+            if ($start < $today || $end < $today) {
+                return $this->json(['error' => 'past_dates'], 400);
+            }
         }
 
-        /** @var LeaveType|null $type */
+        // Minimum notice rule (days before start)
+        $minNotice = $this->settings->leaveMinNoticeDays();
+        if ($minNotice > 0) {
+            $minStart = $today->modify('+' . $minNotice . ' days');
+            if ($start < $minStart) {
+                return $this->json(['error' => 'min_notice', 'minNoticeDays' => $minNotice], 400);
+            }
+        }
+
+/** @var LeaveType|null $type */
         $type = $this->em->getRepository(LeaveType::class)->findOneBy(['code' => $typeCode]);
         if (!$type) {
             return $this->json(['error' => 'type_not_found'], 404);
@@ -75,6 +88,11 @@ class LeaveController extends ApiBase
         $days = $this->workingDays->countWorkingDays($start, $end);
         if ($days <= 0) {
             return $this->json(['error' => 'no_working_days'], 400);
+        }
+
+        $maxDays = $this->settings->leaveMaxDaysPerRequest();
+        if ($days > $maxDays) {
+            return $this->json(['error' => 'max_days_per_request', 'maxDays' => $maxDays], 400);
         }
 
         // Drafts are allowed to overlap, BUT active requests (submitted/approved) should block.

@@ -111,7 +111,32 @@ import { NotificationItem } from '../../core/models';
     a.mat-mdc-list-item {
       border-radius: 14px;
       margin: 3px 0;
-      --mdc-list-list-item-one-line-container-height: 44px;
+      --mdc-list-list-item-one-line-container-height: 46px;
+      padding: 0 10px;
+    }
+
+    /* Align icon + label nicely inside Material list items */
+    a.mat-mdc-list-item .mdc-list-item__content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 0;
+    }
+
+    .label {
+      font-weight: 800;
+      letter-spacing: .1px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      line-height: 1.2;
+    }
+
+    /* Tame MDC default paddings that can push icon/text out of alignment */
+    a.mat-mdc-list-item .mdc-list-item__start,
+    a.mat-mdc-list-item .mdc-list-item__end {
+      margin: 0;
     }
 
     a.mat-mdc-list-item.active {
@@ -128,6 +153,14 @@ import { NotificationItem } from '../../core/models';
       border: 1px solid var(--stroke);
       background: var(--surface);
       color: var(--text);
+      overflow: hidden;
+      flex: 0 0 34px;
+    }
+
+    .item-icon svg {
+      width: 18px;
+      height: 18px;
+      display:block;
     }
 
     .topbar {
@@ -193,7 +226,12 @@ import { NotificationItem } from '../../core/models';
     .user-role { font-size: 11px; color: var(--text-2); }
 
     .content {
-      padding: 18px;
+      padding: 24px;
+    }
+
+    .page {
+      max-width: 1320px;
+      margin: 0 auto;
     }
 
     .route-host {
@@ -214,7 +252,7 @@ import { NotificationItem } from '../../core/models';
     <mat-sidenav mode="side" opened class="sidenav">
       <div class="sidenav-inner">
         <div class="brandbar">
-          <div class="logo"><i class="bi bi-building"></i></div>
+          <div class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 21V3h12v4h6v14H3zm2-2h4v-2H5v2zm0-4h4v-2H5v2zm0-4h4V9H5v2zm0-4h4V5H5v2zm6 12h4v-2h-4v2zm0-4h4v-2h-4v2zm0-4h4V9h-4v2zm6 12h2V9h-2v10z"/></svg></div>
           <div class="brand-text">
             <div class="brand">ALTRACALL HRMS</div>
             <div class="brand-sub">Portail RH interne</div>
@@ -226,7 +264,7 @@ import { NotificationItem } from '../../core/models';
         <div class="section-title">Général</div>
         <mat-nav-list>
           <a mat-list-item routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">
-            <span class="item-icon"><i class="bi bi-speedometer2"></i></span>
+            <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg></span>
             <span class="label">Tableau de bord</span>
           </a>
         </mat-nav-list>
@@ -234,19 +272,19 @@ import { NotificationItem } from '../../core/models';
         <div class="section-title" style="margin-top:6px">RH</div>
         <mat-nav-list>
           <a mat-list-item routerLink="/leaves" routerLinkActive="active">
-            <span class="item-icon"><i class="bi bi-umbrella-beach"></i></span>
+            <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 1.9.76 3.62 2 4.89V22h2v-4h2v4h2v-4h2v4h2v-8.11A6.98 6.98 0 0 0 19 9a7 7 0 0 0-7-7z"/></svg></span>
             <span class="label">Congés</span>
           </a>
           <a mat-list-item routerLink="/advances" routerLinkActive="active">
-            <span class="item-icon"><i class="bi bi-cash-coin"></i></span>
+            <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 6h18v12H3V6zm2 2v8h14V8H5zm2 1h4v2H7V9zm0 4h6v2H7v-2z"/></svg></span>
             <span class="label">Avances / acompte</span>
           </a>
           <a mat-list-item routerLink="/exit-permissions" routerLinkActive="active">
-            <span class="item-icon"><i class="bi bi-person-walking"></i></span>
+            <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13 5.5A1.5 1.5 0 1 1 11.5 4 1.5 1.5 0 0 1 13 5.5zM9 21v-5l-2-4 3-2 1 2 2 1 2-3 2 1-3 5-3-2v7H9z"/></svg></span>
             <span class="label">Autorisations de sortie</span>
           </a>
           <a mat-list-item routerLink="/daily-reports" routerLinkActive="active">
-            <span class="item-icon"><i class="bi bi-clipboard-check"></i></span>
+            <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 2h6a2 2 0 0 1 2 2h2v18H5V4h2a2 2 0 0 1 2-2zm0 2v2h6V4H9zm-2 6h10v2H7V10zm0 4h10v2H7v-2z"/></svg></span>
             <span class="label">Compte-rendu journalier</span>
           </a>
         </mat-nav-list>
@@ -255,19 +293,19 @@ import { NotificationItem } from '../../core/models';
           <div class="section-title" style="margin-top:6px">Administration</div>
           <mat-nav-list>
             <a mat-list-item routerLink="/admin/users" routerLinkActive="active">
-              <span class="item-icon"><i class="bi bi-shield-lock"></i></span>
+              <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l8 4v6c0 5-3.4 9.7-8 10-4.6-.3-8-5-8-10V6l8-4zm0 4.2L6 8v4c0 3.6 2.2 6.9 6 7.7 3.8-.8 6-4.1 6-7.7V8l-6-1.8z"/></svg></span>
               <span class="label">Utilisateurs</span>
             </a>
             <a mat-list-item routerLink="/admin/departments" routerLinkActive="active">
-              <span class="item-icon"><i class="bi bi-building-gear"></i></span>
+              <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 21V3h12v4h6v14H3zm2-2h4v-2H5v2zm0-4h4v-2H5v2zm0-4h4V9H5v2zm0-4h4V5H5v2zm6 12h4v-2h-4v2zm0-4h4v-2h-4v2zm0-4h4V9h-4v2zm6 12h2V9h-2v10z"/></svg></span>
               <span class="label">Départements</span>
             </a>
             <a mat-list-item routerLink="/admin/people-hub" routerLinkActive="active">
-              <span class="item-icon"><i class="bi bi-people-fill"></i></span>
+              <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16 11c1.66 0 3-1.57 3-3.5S17.66 4 16 4s-3 1.57-3 3.5S14.34 11 16 11zM8 11c1.66 0 3-1.57 3-3.5S9.66 4 8 4 5 5.57 5 7.5 6.34 11 8 11zm0 2c-2.67 0-8 1.34-8 4v3h10v-3c0-1.28.5-2.39 1.32-3.24C10.2 13.29 9.02 13 8 13zm8 0c-1.02 0-2.2.29-3.32.76C13.5 14.61 14 15.72 14 17v3h10v-3c0-2.66-5.33-4-8-4z"/></svg></span>
               <span class="label">Vue 360° employés</span>
             </a>
             <a mat-list-item *ngIf="isAdmin()" routerLink="/settings" routerLinkActive="active">
-              <span class="item-icon"><i class="bi bi-gear"></i></span>
+              <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58-1.92-3.32-2.39.96a7.2 7.2 0 0 0-1.63-.94L14.5 2h-5l-.73 2.18c-.58.23-1.12.54-1.63.94l-2.39-.96-1.92 3.32 2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52l1.92 3.32 2.39-.96c.5.4 1.05.71 1.63.94L9.5 22h5l.73-2.18c.58-.23 1.12-.54 1.63-.94l2.39.96 1.92-3.32-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/></svg></span>
               <span class="label">Paramètres</span>
             </a>
           </mat-nav-list>
@@ -312,8 +350,10 @@ import { NotificationItem } from '../../core/models';
       </div>
 
       <div class="content">
-        <div class="route-host" [@routeFade]="routeAnimKey()">
+        <div class="page">
+          <div class="route-host" [@routeFade]="routeAnimKey()">
           <router-outlet></router-outlet>
+        </div>
         </div>
       </div>
     </mat-sidenav-content>

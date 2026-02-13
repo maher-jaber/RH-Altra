@@ -121,6 +121,22 @@ body, .mat-typography { color: var(--text) !important; }
 .mdc-data-table__cell, .mdc-data-table__header-cell { color: var(--text) !important; }
 .mat-mdc-form-field-subscript-wrapper, .mat-mdc-form-field-hint-wrapper { color: var(--text-2) !important; }
 
+/* Angular Material form fields: consistent "clean enterprise" look */
+.mdc-text-field--filled:not(.mdc-text-field--disabled) {
+  background: var(--field-bg) !important;
+  border-radius: 14px !important;
+}
+.mdc-text-field--outlined .mdc-notched-outline__leading,
+.mdc-text-field--outlined .mdc-notched-outline__notch,
+.mdc-text-field--outlined .mdc-notched-outline__trailing {
+  border-color: var(--field-stroke) !important;
+}
+.mat-mdc-form-field.mat-focused .mdc-text-field--outlined .mdc-notched-outline__leading,
+.mat-mdc-form-field.mat-focused .mdc-text-field--outlined .mdc-notched-outline__notch,
+.mat-mdc-form-field.mat-focused .mdc-text-field--outlined .mdc-notched-outline__trailing {
+  border-color: rgba(29,78,216,0.65) !important;
+}
+
 /* Dark mode: slightly more glass */
 :root[data-ui-mode="dark"] .mat-mdc-card,
 :root[data-ui-mode="dark"] .mat-mdc-dialog-container .mdc-dialog__surface {
@@ -172,9 +188,11 @@ a { color: inherit; text-decoration: none; }
 .card {
   border-radius: var(--r-lg);
   border: 1px solid var(--stroke);
-  background: rgba(255,255,255,0.06);
-  box-shadow: var(--shadow-1);
-  backdrop-filter: blur(14px);
+  /* Keep Bootstrap cards visually consistent with Angular Material cards */
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.10);
+  backdrop-filter: blur(10px);
 }
 
 /* Buttons: add a touch of motion */
@@ -210,6 +228,25 @@ button:active { transform: translateY(1px); }
   padding: .7rem .9rem;
 }
 
+/* Input groups look consistent with the rest of the system */
+.input-group-text {
+  background: var(--field-bg-2);
+  color: var(--text);
+  border: 1px solid var(--field-stroke);
+  border-radius: 14px;
+}
+
+.input-group > .input-group-text {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.input-group > .form-control,
+.input-group > .form-select {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
 .form-control::placeholder {
   color: rgba(15,23,42,0.45);
 }
@@ -227,14 +264,6 @@ button:active { transform: translateY(1px); }
 .form-control:disabled, .form-select:disabled {
   background: var(--field-bg-2);
   opacity: .8;
-}
-
-/* Input groups (icons) */
-.input-group-text {
-  border-radius: 14px;
-  border: 1px solid var(--field-stroke);
-  background: var(--field-bg);
-  color: var(--text-2);
 }
 
 /* Floating labels refinement */
@@ -512,3 +541,61 @@ h3 { font-size: 16px; margin: 0 0 10px; }
 }
 
 .chip-dot { width: 8px; height: 8px; border-radius: 999px; }
+
+
+
+/* ===== SIDENAV - align icons + labels perfectly (Angular Material MDC) ===== */
+
+.sidenav mat-nav-list a[mat-list-item] {
+  display: flex;
+  align-items: center;
+  gap: 12px;              /* espace icone / titre */
+  padding-left: 14px;
+  padding-right: 14px;
+  min-height: 44px;       /* hauteur uniforme */
+}
+
+/* zone icône fixe */
+.sidenav .item-icon {
+  width: 34px;            /* largeur fixe = alignement parfait */
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  border-radius: 10px;
+}
+
+/* svg à taille stable */
+.sidenav .item-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* texte */
+.sidenav .label {
+  display: block;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* IMPORTANT: Material MDC ajoute du padding/structure interne -> on neutralise */
+.sidenav a[mat-list-item] .mdc-list-item__content {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.sidenav a[mat-list-item] .mdc-list-item__primary-text {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+/* état actif */
+.sidenav a[mat-list-item].active {
+  border-radius: 12px;
+}

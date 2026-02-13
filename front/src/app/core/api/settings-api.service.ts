@@ -6,6 +6,8 @@ import { firstValueFrom } from 'rxjs';
 export interface AppSettings {
   mailNotifications: any;
   annualLeaveDays: number;
+  workWeek?: { weekendDays: number[]; };
+  leaveRules?: { minNoticeDays: number; maxDaysPerRequest: number; allowPastDates: boolean; };
   exit: { enforceHours: boolean; workStart: string; workEnd: string; };
 }
 

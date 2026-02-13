@@ -18,6 +18,11 @@ export class DailyReportService {
     return firstValueFrom(this.http.get<ListResponse<DailyReport>>(`${environment.apiBaseUrl}/api/daily-reports/team?page=${page}&limit=${limit}`));
   }
 
+
+
+  get(id: number): Promise<DailyReport> {
+    return firstValueFrom(this.http.get<DailyReport>(`${environment.apiBaseUrl}/api/daily-reports/${id}`));
+  }
   create(payload: { date: string; tasks: string; hours?: number|null; blockers?: string|null; nextDayPlan?: string|null }): Promise<DailyReport> {
     return firstValueFrom(this.http.post<DailyReport>(`${environment.apiBaseUrl}/api/daily-reports`, payload));
   }

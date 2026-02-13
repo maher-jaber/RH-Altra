@@ -174,6 +174,43 @@ class DailyReportController extends ApiBase
     }
 
 
+    #[Route('/api/daily-reports/{id}', methods: ['GET'])]
+    public function show(Request $request, int $id): JsonResponse
+    {
+        $u = $this->requireUser($request);
+        $me = $this->getCurrentUser($request);
+
+        /** @var DailyReport|null $dr */
+        $dr = $this->em->getRepository(DailyReport::class)->find($id);
+        if (!$dr) return $this->json(['error'=>'not_found'], 404);
+
+        $isAdmin = in_array('ROLE_ADMIN', $u->roles ?? [], true);
+        $isSuperior = in_array('ROLE_SUPERIOR', $u->roles ?? [], true);
+
+        // Access rules:
+        // - Owner can view
+        // - Manager (manager or manager2) can view
+        // - Admin can view
+        $owner = $dr->getUser();
+        $can = false;
+
+        if ($owner && $owner->getId() === $me->getId()) {
+            $can = true;
+        } elseif ($isAdmin) {
+            $can = true;
+        } elseif ($isSuperior && $owner) {
+            if (($owner->getManager() && $owner->getManager()->getId() === $me->getId())
+             || ($owner->getManager2() && $owner->getManager2()->getId() === $me->getId())) {
+                $can = true;
+            }
+        }
+
+        if (!$can) return $this->json(['error'=>'forbidden'], 403);
+
+        return $this->jsonOk($this->serialize($dr));
+    }
+
+
     private function serialize(DailyReport $r): array
     {
         $raw = (string)($r->getContent() ?? '');

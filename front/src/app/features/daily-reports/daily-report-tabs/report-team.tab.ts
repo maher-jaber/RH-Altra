@@ -1,5 +1,8 @@
 import { Component, Input, OnChanges, SimpleChanges, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+
+import { DailyReportDetailDialog } from '../daily-report-detail.dialog';
 
 import { DailyReportService } from '../../../core/api/daily-report.service';
 import { AuthService } from '../../../core/auth.service';
@@ -7,7 +10,7 @@ import { AuthService } from '../../../core/auth.service';
 @Component({
   standalone: true,
   selector: 'app-daily-report-team-tab',
-  imports: [CommonModule],
+  imports: [CommonModule, MatDialogModule],
   template: `
     <div class="p-2 p-md-3">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -46,7 +49,7 @@ import { AuthService } from '../../../core/auth.service';
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let r of items()">
+                <tr *ngFor="let r of items()" class="row-click" (click)="open(r)">
                   <td class="fw-semibold">{{r.date | date:'mediumDate'}}</td>
                   <td>
                     <div class="fw-semibold">{{r.user?.fullName || r.user?.email || '—'}}</div>
@@ -82,7 +85,7 @@ export class DailyReportTeamTab implements OnChanges {
   total = signal(0);
   items = signal<any[]>([]);
 
-  constructor(private api: DailyReportService, private auth: AuthService) {
+  constructor(private api: DailyReportService, private auth: AuthService, private dialog: MatDialog) {
     if (this.canSee()) void this.load();
   }
 
@@ -101,6 +104,25 @@ export class DailyReportTeamTab implements OnChanges {
     const res = await this.api.team(this.pageIndex() + 1, this.pageSize());
     this.items.set(res?.items || []);
     this.total.set(res?.meta?.total ?? (res?.items?.length || 0));
+  }
+
+
+  async open(r: any) {
+    if (!r?.id) return;
+    try {
+      const full = await this.api.get(r.id);
+      this.dialog.open(DailyReportDetailDialog, {
+        width: "900px",
+        maxWidth: "95vw",
+        data: { report: full }
+      });
+    } catch {
+      this.dialog.open(DailyReportDetailDialog, {
+        width: "900px",
+        maxWidth: "95vw",
+        data: { report: r }
+      });
+    }
   }
 
   reload() { if (this.canSee()) void this.load(); }

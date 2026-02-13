@@ -33,6 +33,14 @@ class SettingsController extends ApiBase
                 'admin'    => ['ALL' => true],
             ]),
             'annualLeaveDays' => $this->settings->get(SettingsService::KEY_ANNUAL_LEAVE_DAYS, 18),
+            'workWeek' => [
+                'weekendDays' => $this->settings->getWeekendDays(),
+            ],
+            'leaveRules' => [
+                'minNoticeDays' => $this->settings->leaveMinNoticeDays(),
+                'maxDaysPerRequest' => $this->settings->leaveMaxDaysPerRequest(),
+                'allowPastDates' => $this->settings->leaveAllowPastDates(),
+            ],
             'exit' => [
                 'enforceHours' => (bool)$this->settings->get(SettingsService::KEY_EXIT_ENFORCE_HOURS, false),
                 'workStart' => (string)$this->settings->get(SettingsService::KEY_EXIT_WORK_START, '08:00'),
@@ -63,6 +71,41 @@ class SettingsController extends ApiBase
             $t = $this->em->getRepository(LeaveType::class)->findOneBy(['code' => 'ANNUAL']);
             if ($t) {
                 $t->setAnnualAllowance($v);
+            }
+        }
+
+
+        if (isset($data['workWeek']) && is_array($data['workWeek'])) {
+            $w = $data['workWeek'];
+            if (isset($w['weekendDays']) && is_array($w['weekendDays'])) {
+                $vals = [];
+                foreach ($w['weekendDays'] as $x) {
+                    $n = (int)$x;
+                    if ($n >= 1 && $n <= 7) $vals[] = $n;
+                }
+                $vals = array_values(array_unique($vals));
+                sort($vals);
+                if (count($vals) === 0) $vals = [6,7];
+                $this->settings->set(SettingsService::KEY_WEEKEND_DAYS, $vals);
+            }
+        }
+
+        if (isset($data['leaveRules']) && is_array($data['leaveRules'])) {
+            $lr = $data['leaveRules'];
+            if (array_key_exists('minNoticeDays', $lr)) {
+                $v = (int)$lr['minNoticeDays'];
+                if ($v < 0) $v = 0;
+                if ($v > 365) $v = 365;
+                $this->settings->set(SettingsService::KEY_LEAVE_MIN_NOTICE_DAYS, $v);
+            }
+            if (array_key_exists('maxDaysPerRequest', $lr)) {
+                $v = (int)$lr['maxDaysPerRequest'];
+                if ($v < 1) $v = 1;
+                if ($v > 365) $v = 365;
+                $this->settings->set(SettingsService::KEY_LEAVE_MAX_DAYS_PER_REQUEST, $v);
+            }
+            if (array_key_exists('allowPastDates', $lr)) {
+                $this->settings->set(SettingsService::KEY_LEAVE_ALLOW_PAST_DATES, (bool)$lr['allowPastDates']);
             }
         }
 

@@ -258,9 +258,9 @@ export class AdminUsersPageComponent implements OnInit {
       fullName: u.fullName,
       netSalary: (u as any).netSalary ?? null,
       role,
-      departmentId: (u.department as any)?.id || '',
-      managerId: (u.manager as any)?.id || '',
-      manager2Id: (u.manager2 as any)?.id || '',
+      departmentId: (u as any).departmentId || (u.department as any)?.id || '',
+      managerId: (u as any).managerId || (u.manager as any)?.id || '',
+      manager2Id: (u as any).manager2Id || (u.manager2 as any)?.id || '',
       password: '',
     });
   }
