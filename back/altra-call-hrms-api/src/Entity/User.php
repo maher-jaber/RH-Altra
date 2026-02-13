@@ -5,6 +5,7 @@ namespace App\Entity;
 use Doctrine\ORM\Mapping as ORM;
 use App\Entity\Department;
 use App\Entity\Company;
+use DateTimeImmutable;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'users')]
@@ -54,11 +55,18 @@ private ?self $manager2 = null;
     private ?string $netSalary = null;
 
     #[ORM\Column(name: 'created_at', type: 'datetime_immutable')]
-    private \DateTimeImmutable $createdAt;
+    private DateTimeImmutable $createdAt;
+
+    // HR fields
+    #[ORM\Column(name: 'hire_date', type: 'date_immutable', nullable: true)]
+    private ?DateTimeImmutable $hireDate = null;
+
+    #[ORM\Column(name: 'leave_initial_balance', type: 'float')]
+    private float $leaveInitialBalance = 0.0;
 
     public function __construct()
     {
-        $this->createdAt = new \DateTimeImmutable();
+        $this->createdAt = new DateTimeImmutable();
     }
 
     public function getId(): ?int { return $this->id; }
@@ -97,13 +105,19 @@ public function setManager2(?self $manager2): self { $this->manager2 = $manager2
         return $this;
     }
 
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
+    public function getHireDate(): ?DateTimeImmutable { return $this->hireDate; }
+    public function setHireDate(?DateTimeImmutable $d): self { $this->hireDate = $d; return $this; }
+
+    public function getLeaveInitialBalance(): float { return $this->leaveInitialBalance; }
+    public function setLeaveInitialBalance(float $v): self { $this->leaveInitialBalance = max(0.0, $v); return $this; }
+
+    public function getCreatedAt(): DateTimeImmutable { return $this->createdAt; }
 
     /**
      * Some controllers seed createdAt explicitly during user creation.
      * Keeping a setter avoids runtime fatals.
      */
-    public function setCreatedAt(\DateTimeImmutable $createdAt): self
+    public function setCreatedAt(DateTimeImmutable $createdAt): self
     {
         $this->createdAt = $createdAt;
         return $this;

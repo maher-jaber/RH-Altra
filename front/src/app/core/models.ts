@@ -37,6 +37,8 @@ export interface AdminUser {
   roles: Role[];
   apiKey: string;
   netSalary?: number | null;
+  hireDate?: string | null;
+  leaveInitialBalance?: number | null;
   department?: Department | null;
   manager?: UserMini | null;
   manager2?: UserMini | null;

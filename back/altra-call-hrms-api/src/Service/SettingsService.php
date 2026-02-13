@@ -22,6 +22,10 @@ class SettingsService
     public const KEY_LEAVE_MAX_DAYS_PER_REQUEST = 'leave_max_days_per_request';
     public const KEY_LEAVE_ALLOW_PAST_DATES = 'leave_allow_past_dates';
 
+    // Leave accrual (monthly)
+    public const KEY_LEAVE_ACCRUAL_PER_MONTH = 'leave_accrual_per_month';
+    public const KEY_LEAVE_DEFAULT_INITIAL_BALANCE = 'leave_default_initial_balance';
+
     public function __construct(private EntityManagerInterface $em) {}
 
     /** @return mixed */
@@ -86,6 +90,24 @@ class SettingsService
     public function leaveAllowPastDates(): bool
     {
         return (bool) $this->get(self::KEY_LEAVE_ALLOW_PAST_DATES, false);
+    }
+
+    /** Monthly accrual rate (days/month). 0 disables accrual logic. */
+    public function leaveAccrualPerMonth(): float
+    {
+        $v = (float) $this->get(self::KEY_LEAVE_ACCRUAL_PER_MONTH, 0.0);
+        if ($v < 0) $v = 0;
+        if ($v > 10) $v = 10;
+        return $v;
+    }
+
+    /** Default initial leave balance applied when creating a new employee (if not specified). */
+    public function leaveDefaultInitialBalance(): float
+    {
+        $v = (float) $this->get(self::KEY_LEAVE_DEFAULT_INITIAL_BALANCE, 0.0);
+        if ($v < 0) $v = 0;
+        if ($v > 365) $v = 365;
+        return $v;
     }
 
     public function roleBucket(User $u): string

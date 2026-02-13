@@ -6,14 +6,15 @@ import { ExitPermissionService } from '../../core/api/exit-permission.service';
 import { AuthService } from '../../core/auth.service';
 import { ExitPermission } from '../../core/models';
 import { AlertService } from '../../core/ui/alert.service';
-import { FlatpickrDirective } from '../../core/ui/flatpickr.directive';
+// NOTE: We intentionally use native date/time pickers here.
+// In some Docker/remote setups, flatpickr CDN can be blocked, resulting in no calendar.
 
 type PageMeta = { page: number; limit: number; total: number; pages: number };
 
 @Component({
   standalone: true,
   selector: 'app-exit-permissions-page',
-  imports: [CommonModule, ReactiveFormsModule, FlatpickrDirective],
+  imports: [CommonModule, ReactiveFormsModule],
   template: `
   <div class="container">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
@@ -41,7 +42,7 @@ type PageMeta = { page: number; limit: number; total: number; pages: number };
             <label class="form-label">Date</label>
             <div class="input-group">
               <span class="input-group-text"><i class="bi bi-calendar2-week"></i></span>
-              <input altraFlatpickr fpDateFormat="Y-m-d" [fpMinDate]="minDate" class="form-control" placeholder="YYYY-MM-DD" formControlName="date" autocomplete="off" />
+              <input type="date" class="form-control" [attr.min]="minDate" formControlName="date" />
             </div>
           </div>
 
@@ -49,10 +50,7 @@ type PageMeta = { page: number; limit: number; total: number; pages: number };
             <label class="form-label">Heure début</label>
             <div class="input-group">
               <span class="input-group-text"><i class="bi bi-clock"></i></span>
-              <select class="form-select" formControlName="startTime">
-                <option value="" disabled selected>Choisir...</option>
-                <option *ngFor="let t of timeOptions" [value]="t">{{t}}</option>
-              </select>
+              <input type="time" class="form-control" formControlName="startTime" />
             </div>
           </div>
 
@@ -60,10 +58,14 @@ type PageMeta = { page: number; limit: number; total: number; pages: number };
             <label class="form-label">Heure fin</label>
             <div class="input-group">
               <span class="input-group-text"><i class="bi bi-clock"></i></span>
-              <select class="form-select" formControlName="endTime">
-                <option value="" disabled selected>Choisir...</option>
-                <option *ngFor="let t of timeOptions" [value]="t">{{t}}</option>
-              </select>
+              <input type="time" class="form-control" formControlName="endTime" />
+            </div>
+          </div>
+
+          <div class="col-12" *ngIf="timeInvalid()">
+            <div class="alert alert-warning py-2 mb-0">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Heure fin doit être <b>après</b> heure début.
             </div>
           </div>
 
@@ -271,6 +273,16 @@ export class ExitPermissionsPageComponent implements OnInit {
     this.reloadPending(page);
   }
 
+  timeInvalid(): boolean {
+    const date = this.form.value.date as string;
+    const s = this.form.value.startTime as string;
+    const e = this.form.value.endTime as string;
+    if (!date || !s || !e) return false;
+    const startAt = new Date(`${date}T${s}:00`);
+    const endAt = new Date(`${date}T${e}:00`);
+    return !(endAt.getTime() > startAt.getTime());
+  }
+
   submit(): void {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     this.loading.set(true);
@@ -281,6 +293,12 @@ export class ExitPermissionsPageComponent implements OnInit {
 
     const startAt = new Date(`${date}T${startTime}:00`);
     const endAt = new Date(`${date}T${endTime}:00`);
+
+    if (!(endAt.getTime() > startAt.getTime())) {
+      this.loading.set(false);
+      this.alerts.error('Heure fin doit être après heure début.');
+      return;
+    }
 
     this.api.create({ startAt: startAt.toISOString(), endAt: endAt.toISOString(), reason }).subscribe({
       next: () => {

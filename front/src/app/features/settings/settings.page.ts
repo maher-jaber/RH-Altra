@@ -73,6 +73,18 @@ import { AlertService } from '../../core/ui/alert.service';
           <label class="form-label">Nombre de jours annuels</label>
           <input class="form-control" type="number" min="0" max="60" [(ngModel)]="model.annualLeaveDays" [ngModelOptions]="{standalone:true}">
         </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label">Acquisition mensuelle (jours/mois)</label>
+          <input class="form-control" type="number" min="0" max="10" step="0.5" [(ngModel)]="model.leaveAccrual!.perMonth" [ngModelOptions]="{standalone:true}">
+          <div class="text-muted" style="font-size:12px">Si &gt; 0 : le solde annuel se calcule automatiquement (solde initial + mois travaillés × taux).</div>
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label">Solde initial par défaut (nouvel employé)</label>
+          <input class="form-control" type="number" min="0" max="365" step="0.5" [(ngModel)]="model.leaveAccrual!.defaultInitialBalance" [ngModelOptions]="{standalone:true}">
+          <div class="text-muted" style="font-size:12px">Appliqué à la création d’un employé si tu ne renseignes pas un solde initial.</div>
+        </div>
       </div>
     </div>
 
@@ -191,8 +203,7 @@ import { AlertService } from '../../core/ui/alert.service';
         Les fêtes religieuses (Aïd, Mawlid, etc.) changent selon l’année: ajoutez-les ici pour l’année choisie.
       </div>
     </div>
-    </div>
-  
+  </div>
   `
 })
 export class SettingsPage implements OnInit {
@@ -211,6 +222,7 @@ export class SettingsPage implements OnInit {
       admin: { ALL: true, LEAVE: true, ADVANCE: true, EXIT_PERMISSION: true },
     },
     annualLeaveDays: 18,
+    leaveAccrual: { perMonth: 0, defaultInitialBalance: 0 },
     workWeek: { weekendDays: [6,7] },
     leaveRules: { minNoticeDays: 0, maxDaysPerRequest: 60, allowPastDates: false },
     exit: { enforceHours: false, workStart: '08:00', workEnd: '18:00' }
@@ -232,11 +244,16 @@ constructor(private api: SettingsApiService, private holidaysApi: HolidayService
     }
 
     const exit = s.exit || base.exit;
+    const la = s.leaveAccrual || base.leaveAccrual || { perMonth: 0, defaultInitialBalance: 0 };
     const workWeek = s.workWeek || base.workWeek || { weekendDays: [6,7] };
     const leaveRules = s.leaveRules || base.leaveRules || { minNoticeDays: 0, maxDaysPerRequest: 60, allowPastDates: false };
     return {
       mailNotifications: mail,
       annualLeaveDays: typeof s.annualLeaveDays === 'number' ? s.annualLeaveDays : base.annualLeaveDays,
+      leaveAccrual: {
+        perMonth: typeof la.perMonth === 'number' ? la.perMonth : 0,
+        defaultInitialBalance: typeof la.defaultInitialBalance === 'number' ? la.defaultInitialBalance : 0,
+      },
       workWeek: {
         weekendDays: Array.isArray(workWeek.weekendDays) && workWeek.weekendDays.length ? workWeek.weekendDays.map((x:any)=>+x) : [6,7]
       },

@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Entity\Department;
+use App\Service\SettingsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -37,6 +38,8 @@ class AdminUserController extends ApiBase
                 'roles' => $u->getRoles(),
                 'apiKey' => $u->getApiKey(),
                 'netSalary' => $u->getNetSalary(),
+                'hireDate' => $u->getHireDate()?->format('Y-m-d'),
+                'leaveInitialBalance' => $u->getLeaveInitialBalance(),
                 'departmentId' => $u->getDepartment()?->getId() ? (string)$u->getDepartment()->getId() : null,
                 'managerId' => $u->getManager()?->getId() ? (string)$u->getManager()->getId() : null,
                 'manager2Id' => $u->getManager2()?->getId() ? (string)$u->getManager2()->getId() : null,
@@ -76,6 +79,8 @@ class AdminUserController extends ApiBase
             'roles' => $u->getRoles(),
             'apiKey' => $u->getApiKey(),
             'netSalary' => $u->getNetSalary(),
+            'hireDate' => $u->getHireDate()?->format('Y-m-d'),
+            'leaveInitialBalance' => $u->getLeaveInitialBalance(),
             'departmentId' => $u->getDepartment()?->getId() ? (string)$u->getDepartment()->getId() : null,
             'managerId' => $u->getManager()?->getId() ? (string)$u->getManager()->getId() : null,
             'manager2Id' => $u->getManager2()?->getId() ? (string)$u->getManager2()->getId() : null,
@@ -95,7 +100,7 @@ class AdminUserController extends ApiBase
     
 
     #[Route('/api/admin/users', name: 'api_admin_users_create', methods: ['POST'])]
-    public function create(Request $request, EntityManagerInterface $em): JsonResponse
+    public function create(Request $request, EntityManagerInterface $em, SettingsService $settings): JsonResponse
     {
         $this->requireAdmin($request);
         $data = json_decode((string)$request->getContent(), true) ?: [];
@@ -107,6 +112,8 @@ class AdminUserController extends ApiBase
         $departmentId = $data['departmentId'] ?? null;
         $managerId = $data['managerId'] ?? null;
         $manager2Id = $data['manager2Id'] ?? null;
+        $hireDateStr = (string)($data['hireDate'] ?? '');
+        $initialLeaveBalance = $data['initialLeaveBalance'] ?? null;
         if (!is_array($roles) || count($roles) === 0) $roles = ['ROLE_EMPLOYEE'];
 
         if ($email === '' || $password === '') {
@@ -125,6 +132,21 @@ class AdminUserController extends ApiBase
         $u->setPasswordHash(password_hash($password, PASSWORD_BCRYPT));
         $u->setApiKey(bin2hex(random_bytes(24)));
         $u->setCreatedAt(new \DateTimeImmutable());
+
+        // Hire date + initial leave balance are defined only at employee creation.
+        // If not provided, we apply sensible defaults.
+        try {
+            $u->setHireDate($hireDateStr ? new \DateTimeImmutable($hireDateStr) : new \DateTimeImmutable('today'));
+        } catch (\Throwable) {
+            $u->setHireDate(new \DateTimeImmutable('today'));
+        }
+
+        $init = $initialLeaveBalance === null || $initialLeaveBalance === ''
+            ? $settings->leaveDefaultInitialBalance()
+            : (float)$initialLeaveBalance;
+        if ($init < 0) $init = 0;
+        if ($init > 365) $init = 365;
+        $u->setLeaveInitialBalance($init);
 
         if ($departmentId) {
             $dept = $em->getRepository(Department::class)->find($departmentId);
@@ -150,6 +172,8 @@ class AdminUserController extends ApiBase
                 'roles' => $u->getRoles(),
                 'apiKey' => $u->getApiKey(),
                 'netSalary' => $u->getNetSalary(),
+                'hireDate' => $u->getHireDate()?->format('Y-m-d'),
+                'leaveInitialBalance' => $u->getLeaveInitialBalance(),
             'department' => $u->getDepartment() ? ['id' => (string)$u->getDepartment()->getId(), 'name' => $u->getDepartment()->getName()] : null,
             'manager' => $u->getManager() ? ['id' => (string)$u->getManager()->getId(), 'fullName' => $u->getManager()->getFullName(), 'email' => $u->getManager()->getEmail()] : null,
             'manager2' => $u->getManager2() ? ['id' => (string)$u->getManager2()->getId(), 'fullName' => $u->getManager2()->getFullName(), 'email' => $u->getManager2()->getEmail()] : null,
@@ -235,6 +259,8 @@ class AdminUserController extends ApiBase
                 'roles' => $u->getRoles(),
                 'apiKey' => $u->getApiKey(),
                 'netSalary' => $u->getNetSalary(),
+                'hireDate' => $u->getHireDate()?->format('Y-m-d'),
+                'leaveInitialBalance' => $u->getLeaveInitialBalance(),
             'department' => $u->getDepartment() ? ['id' => (string)$u->getDepartment()->getId(), 'name' => $u->getDepartment()->getName()] : null,
             'manager' => $u->getManager() ? ['id' => (string)$u->getManager()->getId(), 'fullName' => $u->getManager()->getFullName(), 'email' => $u->getManager()->getEmail()] : null,
             'manager2' => $u->getManager2() ? ['id' => (string)$u->getManager2()->getId(), 'fullName' => $u->getManager2()->getFullName(), 'email' => $u->getManager2()->getEmail()] : null,

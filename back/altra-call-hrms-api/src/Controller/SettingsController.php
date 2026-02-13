@@ -41,6 +41,10 @@ class SettingsController extends ApiBase
                 'maxDaysPerRequest' => $this->settings->leaveMaxDaysPerRequest(),
                 'allowPastDates' => $this->settings->leaveAllowPastDates(),
             ],
+            'leaveAccrual' => [
+                'perMonth' => $this->settings->leaveAccrualPerMonth(),
+                'defaultInitialBalance' => $this->settings->leaveDefaultInitialBalance(),
+            ],
             'exit' => [
                 'enforceHours' => (bool)$this->settings->get(SettingsService::KEY_EXIT_ENFORCE_HOURS, false),
                 'workStart' => (string)$this->settings->get(SettingsService::KEY_EXIT_WORK_START, '08:00'),
@@ -106,6 +110,22 @@ class SettingsController extends ApiBase
             }
             if (array_key_exists('allowPastDates', $lr)) {
                 $this->settings->set(SettingsService::KEY_LEAVE_ALLOW_PAST_DATES, (bool)$lr['allowPastDates']);
+            }
+        }
+
+        if (isset($data['leaveAccrual']) && is_array($data['leaveAccrual'])) {
+            $la = $data['leaveAccrual'];
+            if (array_key_exists('perMonth', $la)) {
+                $v = (float) $la['perMonth'];
+                if ($v < 0) $v = 0;
+                if ($v > 10) $v = 10;
+                $this->settings->set(SettingsService::KEY_LEAVE_ACCRUAL_PER_MONTH, $v);
+            }
+            if (array_key_exists('defaultInitialBalance', $la)) {
+                $v = (float) $la['defaultInitialBalance'];
+                if ($v < 0) $v = 0;
+                if ($v > 365) $v = 365;
+                $this->settings->set(SettingsService::KEY_LEAVE_DEFAULT_INITIAL_BALANCE, $v);
             }
         }
 

@@ -172,6 +172,18 @@ type UiRole = 'ROLE_EMPLOYEE' | 'ROLE_MANAGER' | 'ROLE_ADMIN';
               <div class="muted mt-1">Le rôle est envoyé au backend comme une liste (ex: [ROLE_ADMIN]).</div>
             </div>
 
+            <div class="row g-2" *ngIf="!editingId()">
+              <div class="col-12 col-lg-6">
+                <label class="form-label">Date d'embauche</label>
+                <input class="form-control" type="date" formControlName="hireDate" />
+              </div>
+              <div class="col-12 col-lg-6">
+                <label class="form-label">Solde congé initial (jours)</label>
+                <input class="form-control" type="number" step="0.5" min="0" formControlName="initialLeaveBalance" placeholder="Ex: 0" />
+                <div class="muted mt-1">Le solde mensuel se calcule ensuite via Paramètres.</div>
+              </div>
+            </div>
+
             <div class="mb-3">
               <label class="form-label">Mot de passe {{ editingId() ? '(laisser vide pour ne pas changer)' : '' }}</label>
               <div class="input-group">
@@ -212,6 +224,8 @@ export class AdminUsersPageComponent implements OnInit {
     netSalary: [null as number | null],
     role: ['ROLE_EMPLOYEE' as UiRole],
     password: [''],
+    hireDate: [''],
+    initialLeaveBalance: [null as number | null],
   });
 
   constructor(
@@ -314,6 +328,12 @@ export class AdminUsersPageComponent implements OnInit {
         if (!payload.password) {
           this.alert.toast({ title: 'Mot de passe requis pour créer', icon: 'warning' });
           return;
+        }
+
+        // Only at creation (HR rule)
+        if (val.hireDate) payload.hireDate = val.hireDate;
+        if (val.initialLeaveBalance !== null && val.initialLeaveBalance !== undefined && (val.initialLeaveBalance as any) !== '') {
+          payload.initialLeaveBalance = Number(val.initialLeaveBalance);
         }
         await this.api.create(payload);
         this.alert.toast({ title: 'Utilisateur créé', icon: 'success' });
