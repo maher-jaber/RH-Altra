@@ -116,7 +116,7 @@ type PageMeta = { page: number; limit: number; total: number; pages: number };
                 <td class="text-truncate" style="max-width: 320px">{{e.reason || '—'}}</td>
                 <td>
                   <span class="badge" [class.text-bg-warning]="e.status==='SUBMITTED' || e.status==='MANAGER_APPROVED'" [class.text-bg-success]="e.status==='APPROVED'" [class.text-bg-danger]="e.status==='REJECTED'" [class.text-bg-secondary]="e.status!=='SUBMITTED' && e.status!=='MANAGER_APPROVED' && e.status!=='APPROVED' && e.status!=='REJECTED'">
-                    {{e.status}}
+                    {{ statusLabel(e.status) }}
                   </span>
                 </td>
                 <td class="text-end text-muted small">{{e.createdAt | date:'short'}}</td>
@@ -165,7 +165,7 @@ type PageMeta = { page: number; limit: number; total: number; pages: number };
                 <td>{{e.user.fullName || e.user.email}}</td>
                 <td>{{e.startAt | date:'short'}} → {{e.endAt | date:'short'}}</td>
                 <td class="text-truncate" style="max-width: 280px">{{e.reason || '—'}}</td>
-                <td><span class="badge text-bg-warning">{{e.status}}</span></td>
+                <td><span class="badge text-bg-warning">{{ statusLabel(e.status) }}</span></td>
                 <td class="text-end">
                   <button class="btn btn-sm btn-outline-danger me-2" type="button" (click)="decide(e,'REJECT')"><i class="bi bi-x-circle"></i></button>
                   <button class="btn btn-sm btn-primary" type="button" (click)="decide(e,'APPROVE')"><i class="bi bi-check-circle"></i></button>
@@ -228,7 +228,7 @@ export class ExitPermissionsPageComponent implements OnInit {
   }
 
   canValidate(): boolean {
-    return this.auth.hasRole('ROLE_ADMIN') || this.auth.hasRole('ROLE_SUPERIOR');
+    return this.auth.hasRole('ROLE_ADMIN') || this.auth.isManager();
   }
 
   resetForm(): void {
@@ -323,5 +323,17 @@ export class ExitPermissionsPageComponent implements OnInit {
       },
       error: () => this.alerts.error('Erreur. Impossible d\'enregistrer la décision.')
     });
+  }
+
+statusLabel(status: string): string {
+    const map: Record<string,string> = {
+      SUBMITTED: 'Soumise',
+      MANAGER_APPROVED: 'Validée (Manager 1)',
+      APPROVED: 'Validée',
+      REJECTED: 'Refusée',
+      CANCELLED: 'Annulée',
+      DRAFT: 'Brouillon',
+    };
+    return map[status] ?? status;
   }
 }

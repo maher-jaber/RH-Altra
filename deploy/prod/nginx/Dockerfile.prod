@@ -1,0 +1,31 @@
+# Build Angular front (production) then serve it with Nginx + proxy API/Mercure
+FROM node:20-alpine AS front_build
+WORKDIR /src
+
+# Install deps first (better caching)
+COPY front/package.json front/package-lock.json ./front/
+RUN cd front && npm ci
+
+# Copy sources and build
+COPY front ./front
+RUN cd front && npm run build -- --configuration production \
+ && mkdir -p /frontdist \
+ && if [ -d dist/altra-call-hrms-ui/browser ]; then \
+      cp -a dist/altra-call-hrms-ui/browser/. /frontdist/ ; \
+    else \
+      cp -a dist/altra-call-hrms-ui/. /frontdist/ ; \
+    fi \
+ && test -f /frontdist/index.html
+
+FROM nginx:1.27-alpine
+
+# Default paths expected by your nginx conf
+RUN mkdir -p /var/www/front /var/www/api/public
+
+# Front static files
+COPY --from=front_build /frontdist/ /var/www/front/
+
+# Nginx conf (will be overridden by compose bind-mount if you edit files on host)
+COPY deploy/prod/nginx/conf.d/ /etc/nginx/conf.d/
+
+EXPOSE 80

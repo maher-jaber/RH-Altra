@@ -44,7 +44,7 @@ export class ExitActionsTab implements OnInit {
   loading = signal(false);
   msg = signal('');
 
-  meId = computed(() => this.auth.me()?.id);
+  meId = computed(() => Number(this.auth.me()?.id));
 
   constructor(private api: ExitPermissionService, private auth: AuthService) {}
 
@@ -62,8 +62,11 @@ export class ExitActionsTab implements OnInit {
     const e = this.item();
     if (!e) return false;
     const isAdmin = this.auth.hasRole('ROLE_ADMIN');
-    const isManager = this.auth.hasRole('ROLE_SUPERIOR') && (e.manager?.id === this.meId());
-    return (isAdmin || isManager) && e.status === 'SUBMITTED';
+    // Manager permission is relationship-based (manager/manager2), not only ROLE_SUPERIOR.
+    const isManager = (Number(e.manager?.id) === this.meId());
+    const isManager2 = (Number(e.manager2?.id) === this.meId());
+    const alreadySigned = (!!e.managerSignedAt && isManager) || (!!e.manager2SignedAt && isManager2);
+    return (isAdmin || isManager || isManager2) && e.status === 'SUBMITTED' && !alreadySigned;
   }
 
   async decide(d: 'APPROVE' | 'REJECT') {

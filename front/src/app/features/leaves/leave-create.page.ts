@@ -48,12 +48,13 @@ type BalanceRow = { type: LeaveType; year: number; usedDays: number; remainingDa
           <div class="grid">
             <mat-form-field appearance="outline" style="width:100%">
               <mat-label>Date début</mat-label>
-              <input matInput type="date" [min]="minDate" [(ngModel)]="startDate" (change)="recompute()" />
+              <!-- Use ngModelChange (not only change) to avoid cases where the date is selected but buttons stay disabled -->
+              <input matInput type="date" [min]="minDate" [(ngModel)]="startDate" (ngModelChange)="recompute()" />
             </mat-form-field>
 
             <mat-form-field appearance="outline" style="width:100%">
               <mat-label>Date fin</mat-label>
-              <input matInput type="date" [min]="minDate" [(ngModel)]="endDate" (change)="recompute()" />
+              <input matInput type="date" [min]="minDate" [(ngModel)]="endDate" (ngModelChange)="recompute()" />
             </mat-form-field>
           </div>
 
@@ -68,7 +69,10 @@ type BalanceRow = { type: LeaveType; year: number; usedDays: number; remainingDa
           </div>
 
           <div class="row" style="margin-top:10px" *ngIf="selectedBalance() as b">
-            <div><b>Solde:</b> {{ b.remainingDays === null ? '—' : b.remainingDays }} jours restants</div>
+            <div><b>Solde actuel:</b> {{ b.remainingDays === null ? '—' : b.remainingDays }} jours</div>
+            <div *ngIf="remainingAfter() !== null" class="muted">
+              Après cette demande: {{ remainingAfter() }} jours
+            </div>
             <div class="muted" *ngIf="selectedType()?.code==='UNPAID'">Sans solde: pas de limite</div>
           </div>
 
@@ -153,7 +157,19 @@ export class LeaveCreatePage implements OnInit {
     return this.balances().find(b => b.type?.id === this.typeId) || null;
   }
 
-  requiresCertificate(): boolean {
+  
+  remainingAfter(): number | null {
+    const t = this.selectedType();
+    const b = this.selectedBalance();
+    if (!t || !b) return null;
+    if (t.code === 'UNPAID') return null;
+    if (b.remainingDays === null) return null;
+    const days = this.workingDays();
+    if (!days) return b.remainingDays;
+    return b.remainingDays - days;
+  }
+
+requiresCertificate(): boolean {
     return !!this.selectedType()?.requiresCertificate;
   }
 
@@ -181,6 +197,18 @@ export class LeaveCreatePage implements OnInit {
     if (this.endDate < this.startDate) {
       this.validationMsg.set('La date de fin doit être après (ou égale à) la date de début.');
       return;
+    }
+
+    const y1 = parseInt(this.startDate.slice(0, 4), 10);
+    const y2 = parseInt(this.endDate.slice(0, 4), 10);
+    if (y1 !== y2) {
+      this.validationMsg.set('Période sur deux années: veuillez faire une demande par année.');
+      return;
+    }
+    if (y1 !== this.year) {
+      this.year = y1;
+      const balRes = await this.api.balance(this.year);
+      this.balances.set(balRes.items || []);
     }
     try {
       const res = await this.api.calculate(this.startDate, this.endDate);

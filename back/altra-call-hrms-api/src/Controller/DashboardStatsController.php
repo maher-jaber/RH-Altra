@@ -23,8 +23,9 @@ class DashboardStatsController extends ApiBase
         $me = $this->requireDbUser($r, $em);
 
         $isAdmin = $this->hasRole($token, 'ROLE_ADMIN');
-        $isHr = $this->hasRole($token, 'ROLE_HR') || $isAdmin;
-        $isManager = $this->hasRole($token, 'ROLE_SUPERIOR') || $isAdmin;
+        $isHr = $isAdmin;
+        // RH removed. Manager access is relationship-based.
+        $isManager = $isAdmin || $this->hasRole($token, 'ROLE_SUPERIOR') || $this->isManagerByRelation($em, $me);
 
         $kpis = [
             'pendingLeavesManager' => 0,
@@ -47,14 +48,7 @@ class DashboardStatsController extends ApiBase
             $kpis['pendingLeavesManager'] = (int)$countQb->getQuery()->getSingleScalarResult();
         }
 
-        if ($isAdmin) {
-            $countQb = $em->createQueryBuilder()
-                ->select('COUNT(lr.id)')
-                ->from(LeaveRequest::class, 'lr')
-                ->where('lr.status = :st')
-                ->setParameter('st', LeaveRequest::STATUS_MANAGER_APPROVED);
-            $kpis['pendingLeavesHr'] = (int)$countQb->getQuery()->getSingleScalarResult();
-        }
+        // RH removed: no HR pending queue.
 
         if ($isManager) {
             $st1 = ExitPermission::STATUS_SUBMITTED;

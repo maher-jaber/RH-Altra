@@ -24,24 +24,20 @@ import { MatButtonModule } from '@angular/material/button';
       <mat-tab-group (selectedIndexChange)="onTab($event)">
         <mat-tab label="Résumé">
           <ng-template matTabContent>
-            <ng-container *ngIf="cmp() as C; else loading">
-              <ng-container *ngComponentOutlet="C; inputs: { leaveId: leaveId() }"></ng-container>
+            <ng-container *ngIf="overviewCmp() && actionsCmp(); else loading">
+              <ng-container *ngComponentOutlet="overviewCmp(); inputs: { leaveId: leaveId() }"></ng-container>
+
+              <div style="height:12px"></div>
+              <!-- Actions sous le résumé (au lieu d'un onglet séparé) -->
+              <ng-container *ngComponentOutlet="actionsCmp(); inputs: { leaveId: leaveId() }"></ng-container>
             </ng-container>
           </ng-template>
         </mat-tab>
 
         <mat-tab label="Historique validation">
           <ng-template matTabContent>
-            <ng-container *ngIf="cmp() as C; else loading">
-              <ng-container *ngComponentOutlet="C; inputs: { leaveId: leaveId() }"></ng-container>
-            </ng-container>
-          </ng-template>
-        </mat-tab>
-
-        <mat-tab label="Actions">
-          <ng-template matTabContent>
-            <ng-container *ngIf="cmp() as C; else loading">
-              <ng-container *ngComponentOutlet="C; inputs: { leaveId: leaveId() }"></ng-container>
+            <ng-container *ngIf="historyCmp(); else loading">
+              <ng-container *ngComponentOutlet="historyCmp(); inputs: { leaveId: leaveId() }"></ng-container>
             </ng-container>
           </ng-template>
         </mat-tab>
@@ -59,24 +55,29 @@ import { MatButtonModule } from '@angular/material/button';
 })
 export class LeaveDetailPage implements OnInit{
   leaveId = signal<string>('');
-  cmp = signal<any>(null);
+  overviewCmp = signal<any>(null);
+  historyCmp = signal<any>(null);
+  actionsCmp = signal<any>(null);
 
-  private loaders = [
-    () => import('./leave-detail-tabs/leave-overview.tab').then(m => m.LeaveOverviewTab),
-    () => import('./leave-detail-tabs/leave-history.tab').then(m => m.LeaveHistoryTab),
-    () => import('./leave-detail-tabs/leave-actions.tab').then(m => m.LeaveActionsTab),
-  ];
+  private loadOverview = () => import('./leave-detail-tabs/leave-overview.tab').then(m => m.LeaveOverviewTab);
+  private loadHistory = () => import('./leave-detail-tabs/leave-history.tab').then(m => m.LeaveHistoryTab);
+  private loadActions = () => import('./leave-detail-tabs/leave-actions.tab').then(m => m.LeaveActionsTab);
 
   constructor(private route:ActivatedRoute){}
 
   async ngOnInit(){
     this.leaveId.set(this.route.snapshot.paramMap.get('id')!);
-    await this.onTab(0);
+    // Pré-charge résumé + actions pour affichage direct (pas d'onglet Actions séparé)
+    const [Ov, Act] = await Promise.all([this.loadOverview(), this.loadActions()]);
+    this.overviewCmp.set(Ov);
+    this.actionsCmp.set(Act);
   }
 
   async onTab(i:number){
-    this.cmp.set(null);
-    const C = await this.loaders[i]();
-    this.cmp.set(C);
+    // On ne charge l'historique qu'au besoin
+    if(i === 1 && !this.historyCmp()){
+      const H = await this.loadHistory();
+      this.historyCmp.set(H);
+    }
   }
 }

@@ -20,6 +20,8 @@ class LeaveWorkflowController extends ApiBase {
         $pg = $this->parsePagination($r);
 
         // Dual-manager: show SUBMITTED requests where I am manager1 or manager2, and I haven't signed yet.
+        // NOTE: Use IDENTITY() comparisons to avoid edge-cases with proxy/detached entities.
+        $meId = (int)$u->getId();
         if (!$pg['enabled']) {
             $qb = $em->createQueryBuilder()
                 ->select('lr, t, emp, m1, m2')
@@ -29,9 +31,9 @@ class LeaveWorkflowController extends ApiBase {
                 ->leftJoin('lr.manager', 'm1')->addSelect('m1')
                 ->leftJoin('lr.manager2', 'm2')->addSelect('m2')
                 ->where('lr.status = :st')
-                ->andWhere('((lr.manager = :me AND lr.managerSignedAt IS NULL) OR (lr.manager2 = :me AND lr.manager2SignedAt IS NULL))')
+                ->andWhere('((IDENTITY(lr.manager) = :meId) OR (IDENTITY(lr.manager2) = :meId))')
                 ->setParameter('st', LeaveRequest::STATUS_SUBMITTED)
-                ->setParameter('me', $u)
+                ->setParameter('meId', $meId)
                 ->orderBy('lr.id', 'DESC');
             $items = $qb->getQuery()->getResult();
             return $this->jsonOk(['items' => array_map([$this,'serialize'], $items)]);
@@ -46,9 +48,9 @@ class LeaveWorkflowController extends ApiBase {
             ->leftJoin('lr.manager', 'm1')->addSelect('m1')
             ->leftJoin('lr.manager2', 'm2')->addSelect('m2')
             ->where('lr.status = :st')
-            ->andWhere('((lr.manager = :me AND lr.managerSignedAt IS NULL) OR (lr.manager2 = :me AND lr.manager2SignedAt IS NULL))')
+            ->andWhere('((IDENTITY(lr.manager) = :meId) OR (IDENTITY(lr.manager2) = :meId))')
             ->setParameter('st', LeaveRequest::STATUS_SUBMITTED)
-            ->setParameter('me', $u)
+            ->setParameter('meId', $meId)
             ->orderBy('lr.id', 'DESC')
             ->setFirstResult($pg['offset'])
             ->setMaxResults($pg['limit']);
@@ -59,9 +61,9 @@ class LeaveWorkflowController extends ApiBase {
             ->select('COUNT(lr2.id)')
             ->from(LeaveRequest::class, 'lr2')
             ->where('lr2.status = :st')
-            ->andWhere('((lr2.manager = :me AND lr2.managerSignedAt IS NULL) OR (lr2.manager2 = :me AND lr2.manager2SignedAt IS NULL))')
+            ->andWhere('((IDENTITY(lr2.manager) = :meId AND lr2.managerSignedAt IS NULL) OR (IDENTITY(lr2.manager2) = :meId AND lr2.manager2SignedAt IS NULL))')
             ->setParameter('st', LeaveRequest::STATUS_SUBMITTED)
-            ->setParameter('me', $u);
+            ->setParameter('meId', $meId);
 
         $total = (int)$countQb->getQuery()->getSingleScalarResult();
 
@@ -82,6 +84,7 @@ class LeaveWorkflowController extends ApiBase {
         Request $r,
         EntityManagerInterface $em,
         LeaveNotificationService $mail,
+        SettingsService $settings,
         MessageBusInterface $bus
     ): JsonResponse {
         $u = $this->requireDbUser($r, $em);
@@ -173,111 +176,25 @@ class LeaveWorkflowController extends ApiBase {
             ));
         }
 
-        // Best-effort email hooks (kept)
-        try { $mail->onManagerDecision($lr); } catch (\Throwable) { /* ignore */ }
+        // Best-effort email (employee)
+        try {
+            if ($lr->getUser() && $settings->canSendEmail($lr->getUser(), 'LEAVE')) {
+                $mail->onManagerDecision($lr);
+            }
+        } catch (\Throwable) { /* ignore */ }
 
         return $this->jsonOk(['status'=>$lr->getStatus()]);
     }
 
-        #[Route('/api/leaves/pending/hr', methods:['GET'])]
-    public function pendingHr(Request $r, EntityManagerInterface $em): JsonResponse {
-        $this->requireRole($r, 'ROLE_ADMIN');
-        $pg = $this->parsePagination($r);
-
-        if (!$pg['enabled']) {
-            $items = $em->getRepository(LeaveRequest::class)->findBy([
-                'status' => LeaveRequest::STATUS_MANAGER_APPROVED,
-            ], ['id' => 'DESC']);
-            return $this->jsonOk(['items' => array_map([$this,'serialize'], $items)]);
-        }
-
-        // Eager-load relations to avoid N+1 queries when serializing (user/manager/type)
-        $qb = $em->createQueryBuilder()
-            ->select('lr, t, u, m')
-            ->from(LeaveRequest::class, 'lr')
-            ->leftJoin('lr.type', 't')->addSelect('t')
-            ->leftJoin('lr.user', 'u')->addSelect('u')
-            ->leftJoin('lr.manager', 'm')->addSelect('m')
-            ->where('lr.status = :st')
-            ->setParameter('st', LeaveRequest::STATUS_MANAGER_APPROVED)
-            ->orderBy('lr.id', 'DESC')
-            ->setFirstResult($pg['offset'])
-            ->setMaxResults($pg['limit']);
-
-        $items = $qb->getQuery()->getResult();
-
-        $countQb = $em->createQueryBuilder()
-            ->select('COUNT(lr2.id)')
-            ->from(LeaveRequest::class, 'lr2')
-            ->where('lr2.status = :st')
-            ->setParameter('st', LeaveRequest::STATUS_MANAGER_APPROVED);
-
-        $total = (int)$countQb->getQuery()->getSingleScalarResult();
-
-        return $this->jsonOk([
-            'items' => array_map([$this,'serialize'], $items),
-            'meta' => [
-                'page' => $pg['page'],
-                'limit' => $pg['limit'],
-                'total' => $total,
-                'pages' => (int)ceil($total / max(1,$pg['limit'])),
-            ]
-        ]);
-    }
-
-        #[Route('/api/leaves/{id}/hr-approve', methods:['POST'])]
-    public function hrApprove(
-        string $id,
-        Request $r,
-        EntityManagerInterface $em,
-        LeaveNotificationService $mail,
-        MessageBusInterface $bus
-    ): JsonResponse {
-        $this->requireRole($r,'ROLE_ADMIN');
-        $lr=$em->getRepository(LeaveRequest::class)->find($id);
-        if(!$lr) return $this->json(['error'=>'not_found'],404);
-
-        if($lr->getStatus() !== LeaveRequest::STATUS_MANAGER_APPROVED) return $this->json(['error'=>'invalid_status'],400);
-
-        $data = json_decode((string)$r->getContent(), true) ?: [];
-        if (isset($data['comment'])) { $lr->setHrComment((string)$data['comment']); }
-        $lr->setStatus(LeaveRequest::STATUS_HR_APPROVED);
-        $em->flush();
-
-        // Notify employee (in-app + email)
-        if ($lr->getUser()) {
-            $n = new Notification();
-            $n->setUser($lr->getUser());
-            $n->setTitle('Congé · Approuvé RH');
-            $n->setBody('Votre demande de congé est approuvée. Ouvrez le détail pour voir les dates et commentaires.');
-            $n->setActionUrl('/leaves/detail/' . $lr->getId());
-            $n->setPayload($this->serialize($lr));
-            $n->setType('LEAVE');
-            $em->persist($n);
-            $em->flush();
-
-            $bus->dispatch(new PublishNotificationMessage(
-                recipientApiKey: $lr->getUser()->getApiKey(),
-                title: $n->getTitle(),
-                body: (string)$n->getBody(),
-                type: $n->getType(),
-                notificationId: (string)$n->getId(),
-                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
-                actionUrl: $n->getActionUrl(),
-                payload: $n->getPayload()
-            ));
-        }
-
-        try { $mail->onHrDecision($lr); } catch (\Throwable $e) { /* ignore */ }
-
-        return $this->jsonOk(['status'=>$lr->getStatus()]);
-    }
+    // RH removed: no pending/hr nor hr-approve endpoint.
 
     #[Route('/api/leaves/{id}/reject', methods:['POST'])]
     public function reject(
         string $id,
         Request $r,
         EntityManagerInterface $em,
+        LeaveNotificationService $mail,
+        SettingsService $settings,
         MessageBusInterface $bus
     ): JsonResponse {
         $token = $this->requireUser($r);
@@ -287,7 +204,8 @@ class LeaveWorkflowController extends ApiBase {
 
         $isAdmin = in_array('ROLE_ADMIN', $token->roles ?? [], true);
         $isManager = $lr->getManager()?->getId() === $me->getId();
-        if (!$isAdmin && !$isManager) {
+        $isManager2 = $lr->getManager2()?->getId() === $me->getId();
+        if (!$isAdmin && !$isManager && !$isManager2) {
             return $this->json(['error'=>'forbidden'],403);
         }
         // only allow reject before final approval
@@ -296,11 +214,14 @@ class LeaveWorkflowController extends ApiBase {
         }
         $data = json_decode((string)$r->getContent(), true) ?: [];
         // store comment depending on who rejects
-        $u = $token;
-        if (in_array('ROLE_ADMIN', $u->roles ?? [], true)) {
+        if ($isAdmin) {
             if (isset($data['comment'])) { $lr->setHrComment((string)$data['comment']); }
+        } elseif ($isManager2) {
+            if (isset($data['comment'])) { $lr->setManager2Comment((string)$data['comment']); }
+            $lr->setManager2SignedAt(new \DateTimeImmutable());
         } else {
             if (isset($data['comment'])) { $lr->setManagerComment((string)$data['comment']); }
+            $lr->setManagerSignedAt(new \DateTimeImmutable());
         }
         $lr->setStatus(LeaveRequest::STATUS_REJECTED);
         $em->flush();
@@ -328,6 +249,15 @@ class LeaveWorkflowController extends ApiBase {
                 payload: $n->getPayload()
             ));
         }
+
+        // Best-effort email to employee
+        try {
+            if ($lr->getUser() && $settings->canSendEmail($lr->getUser(), 'LEAVE')) {
+                // For admin reject -> treat as RH decision, else manager decision
+                if ($isAdmin) $mail->onHrDecision($lr);
+                else $mail->onManagerDecision($lr);
+            }
+        } catch (\Throwable) { /* ignore */ }
 
         return $this->jsonOk(['status'=>$lr->getStatus()]);
     }

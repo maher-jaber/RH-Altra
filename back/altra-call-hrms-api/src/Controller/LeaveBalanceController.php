@@ -30,42 +30,22 @@ class LeaveBalanceController extends ApiBase
                 ->from(LeaveRequest::class, 'l')
                 ->where('l.user = :u')
                 ->andWhere('l.type = :t')
-                ->andWhere('l.status = :s')
+                ->andWhere('l.status IN (:sts)')
                 ->andWhere('l.startDate >= :from AND l.endDate <= :to')
                 ->setParameters([
                     'u' => $u,
                     't' => $t,
-                    's' => LeaveRequest::STATUS_HR_APPROVED,
+                    'sts' => [LeaveRequest::STATUS_SUBMITTED, LeaveRequest::STATUS_MANAGER_APPROVED, LeaveRequest::STATUS_HR_APPROVED],
                     'from' => $from,
                     'to' => $to,
                 ]);
             $used = (float)$qb->getQuery()->getSingleScalarResult();
             $allow = (float)$t->getAnnualAllowance();
 
-            // If monthly accrual is enabled, compute allowance for ANNUAL leave dynamically
-            // based on hire date and initial leave balance.
-            if ($accrual > 0 && $t->getCode() === 'ANNUAL') {
-                $hire = $u->getHireDate() ?: $u->getCreatedAt();
-                $periodStart = $from;
-                if ($hire > $periodStart) $periodStart = new \DateTimeImmutable($hire->format('Y-m-01'));
-                // Accrue only up to "today" for current year (no future accrual)
-                $periodEnd = $to;
-                if ((int)$today->format('Y') === $year && $today < $periodEnd) {
-                    $periodEnd = $today;
-                }
-
-                // months count inclusive by calendar month
-                $months = 0;
-                if ($periodEnd >= $periodStart) {
-                    $y1 = (int)$periodStart->format('Y');
-                    $m1 = (int)$periodStart->format('m');
-                    $y2 = (int)$periodEnd->format('Y');
-                    $m2 = (int)$periodEnd->format('m');
-                    $months = ($y2 - $y1) * 12 + ($m2 - $m1) + 1;
-                    if ($months < 0) $months = 0;
-                }
-
-                $allow = (float)$u->getLeaveInitialBalance() + ($months * $accrual);
+            // If accrual is enabled, compute allowance for ANNUAL leave dynamically:
+            // allowance = initialBalance + (completed cycles × rate_for_contract).
+            if ($t->getCode() === 'ANNUAL') {
+                $allow = $settings->accruedAnnualAllowanceForUser($u, $year, $today);
             }
             $remaining = ($allow > 0) ? max(0.0, $allow - $used) : null;
 

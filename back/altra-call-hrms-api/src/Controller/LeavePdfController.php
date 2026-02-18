@@ -20,7 +20,7 @@ if (!$lr) {
     return new Response('Not found', 404);
 }
 $isOwner = $lr->getUser()?->getId() === $dbUser->getId();
-$isHr = in_array('ROLE_HR', $ak->roles, true) || in_array('ROLE_ADMIN', $ak->roles, true);
+$isHr = in_array('ROLE_ADMIN', $ak->roles, true);
 $isMgr = $lr->getManager()?->getId() === $dbUser->getId();
 if (!$isOwner && !$isHr && !$isMgr) {
     return new Response('Forbidden', 403);

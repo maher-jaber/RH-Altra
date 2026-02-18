@@ -1,16 +1,20 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
-import { firstValueFrom } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class LeaveWorkflowService {
+  /** Emits whenever a leave is created/submitted/updated so tabbed pages can refresh without navigation. */
+  readonly changed$ = new Subject<void>();
+
   constructor(private http: HttpClient) {}
 
   // Lists
   my(page?:number, limit?:number){ const q = page ? `?page=${page}&limit=${limit||10}`:''; return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/my${q}`)); }
   pendingManager(page?:number, limit?:number){ const q = page ? `?page=${page}&limit=${limit||10}`:''; return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/pending/manager${q}`)); }
-  pendingHr(page?:number, limit?:number){ const q = page ? `?page=${page}&limit=${limit||10}`:''; return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/pending/hr${q}`)); }
+  // Backward-compat (old HR screens): behave like manager pending/approve.
+  pendingHr(page?:number, limit?:number){ return this.pendingManager(page, limit); }
 
   // Types / balance / calculation
   listTypes() { return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leave-types`)); }
@@ -24,17 +28,30 @@ export class LeaveWorkflowService {
 
   // Create / submit / decisions
   createLeave(payload: { typeId: string; startDate: string; endDate: string; note?: string }) {
-    return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves`, payload));
+    return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves`, payload)).then(r => {
+      this.changed$.next();
+      return r;
+    });
   }
-  submitLeave(id: string) { return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves/${id}/submit`, {})); }
+  submitLeave(id: string) {
+    return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves/${id}/submit`, {})).then(r => {
+      this.changed$.next();
+      return r;
+    });
+  }
   managerApprove(id: string, comment?: string) {
-    return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves/${id}/manager-approve`, { comment }));
+    return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves/${id}/manager-approve`, { comment })).then(r => {
+      this.changed$.next();
+      return r;
+    });
   }
-  hrApprove(id: string, comment?: string) {
-    return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves/${id}/hr-approve`, { comment }));
-  }
+    // Backward-compat (old HR screens): behave like manager approve.
+  hrApprove(id: string, comment?: string) { return this.managerApprove(id, comment); }
   reject(id: string, comment?: string) {
-    return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves/${id}/reject`, { comment }));
+    return firstValueFrom(this.http.post<any>(`${environment.apiBaseUrl}/api/leaves/${id}/reject`, { comment })).then(r => {
+      this.changed$.next();
+      return r;
+    });
   }
 
   // Certificates / attachments / audit

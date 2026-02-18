@@ -7,6 +7,7 @@ import { firstValueFrom } from 'rxjs';
 type PageMeta = { page:number; limit:number; total:number; pages:number };
 type ListResponse = { items: AdminUser[]; meta?: PageMeta };
 type UserResponse = { user: AdminUser };
+type UpdateResponse = { user: AdminUser; forceLogout?: boolean };
 
 @Injectable({ providedIn: 'root' })
 export class AdminUserService {
@@ -23,12 +24,12 @@ export class AdminUserService {
     );
   }
 
-  create(payload: { email: string; password: string; fullName?: string; roles: Role[]; netSalary?: number | null }): Promise<UserResponse> {
+  create(payload: any): Promise<UserResponse> {
     return firstValueFrom(this.http.post<UserResponse>(`${environment.apiBaseUrl}/api/admin/users`, payload));
   }
 
-  update(id: string, payload: Partial<{ email: string; password: string; fullName: string; roles: Role[]; rotateApiKey: boolean; netSalary: number | null }>): Promise<UserResponse> {
-    return firstValueFrom(this.http.put<UserResponse>(`${environment.apiBaseUrl}/api/admin/users/${id}`, payload));
+  update(id: string, payload: any): Promise<UpdateResponse> {
+    return firstValueFrom(this.http.put<UpdateResponse>(`${environment.apiBaseUrl}/api/admin/users/${id}`, payload));
   }
 
   delete(id: string): Promise<{ ok: boolean }> {

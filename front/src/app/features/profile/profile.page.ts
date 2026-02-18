@@ -100,6 +100,9 @@ import { AlertService } from '../../core/ui/alert.service';
           </p>
 
           <div class="d-grid gap-2">
+            <a *ngIf="auth.hasRole('ROLE_ADMIN')" class="btn btn-outline-primary" routerLink="/admin/users">
+              <i class="bi bi-person-plus me-2"></i>Créer un utilisateur
+            </a>
             <a class="btn btn-outline-primary" routerLink="/notifications"><i class="bi bi-bell me-2"></i>Notifications</a>
             <a class="btn btn-outline-primary" routerLink="/dashboard"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
             <button class="btn btn-outline-danger" type="button" (click)="logout()"><i class="bi bi-box-arrow-right me-2"></i>Déconnexion</button>
@@ -139,7 +142,7 @@ export class ProfilePage implements OnInit {
   roleLabel(): string {
     const roles = this.auth.me()?.roles || [];
     if (roles.includes('ROLE_ADMIN' as any)) return 'Administrateur';
-    if (roles.includes('ROLE_SUPERIOR' as any)) return 'Manager';
+    if (roles.includes('ROLE_SUPERIOR' as any) || roles.includes('ROLE_MANAGER' as any)) return 'Manager';
     return 'Employé';
   }
 

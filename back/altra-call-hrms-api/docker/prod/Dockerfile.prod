@@ -1,0 +1,39 @@
+FROM php:8.2-fpm-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache \
+      bash git unzip icu-dev libzip-dev oniguruma-dev mysql-client \
+      $PHPIZE_DEPS \
+  && docker-php-ext-install pdo_mysql intl opcache \
+  && pecl install redis \
+  && docker-php-ext-enable redis \
+  && apk del --no-network $PHPIZE_DEPS \
+  && rm -rf /var/cache/apk/*
+
+
+# Composer
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+
+# php perf
+COPY docker/prod/php.ini /usr/local/etc/php/conf.d/zz-perf.ini
+COPY docker/prod/www.conf /usr/local/etc/php-fpm.d/www.conf
+
+# Copy full app first so bin/console exists for any later steps
+COPY . .
+
+# Install vendors (skip Symfony auto-scripts during image build)
+RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader --no-scripts
+
+# Ensure runtime writable dirs exist (also mounted as volumes in docker-compose)
+RUN mkdir -p /app/var /app/public/uploads \
+ && chown -R www-data:www-data /app/var /app/public/uploads
+
+# Optional warmup. If it fails, container can still start and warmup at runtime.
+RUN php bin/console cache:clear --env=prod || true
+
+# Ensure entrypoint is executable (Windows zip can drop +x)
+RUN chmod +x /app/docker/prod/entrypoint.sh
+
+EXPOSE 9000
+ENTRYPOINT ["/app/docker/prod/entrypoint.sh"]

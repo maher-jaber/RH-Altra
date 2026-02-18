@@ -439,7 +439,7 @@ export class ShellComponent implements OnInit, OnDestroy {
   roleLabel = computed(() => {
     const roles = this.auth.me()?.roles || [];
     if (roles.includes('ROLE_ADMIN')) return 'Administrateur';
-    if (roles.includes('ROLE_SUPERIOR')) return 'Manager';
+    if (roles.includes('ROLE_SUPERIOR') || roles.includes('ROLE_MANAGER')) return 'Manager';
     return 'Employé';
   });
 

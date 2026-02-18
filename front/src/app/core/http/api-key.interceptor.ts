@@ -1,14 +1,18 @@
 import { HttpInterceptorFn } from '@angular/common/http';
-import { storage } from '../storage';
+import { inject } from '@angular/core';
+import { AuthService } from '../auth.service';
 
-export const apiKeyInterceptor: HttpInterceptorFn = (req, next) => {
-  const token = storage.getToken();
+/**
+ * Adds Authorization: Bearer <token> to API requests.
+ * Token is stored after login. We do not expose an "API key" concept in the UI.
+ */
+export const authTokenInterceptor: HttpInterceptorFn = (req, next) => {
+  const auth = inject(AuthService);
+  const token = auth.token;
   if (!token) return next(req);
 
-  const cloned = req.clone({
-    setHeaders: {
-      'X-API-KEY': token
-    }
-  });
-  return next(cloned);
+  // Only attach to API calls
+  if (!req.url.includes('/api/')) return next(req);
+
+  return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
 };

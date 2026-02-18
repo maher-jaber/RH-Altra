@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\User;
 use App\Entity\Department;
 use App\Service\SettingsService;
+use App\Service\LeaveNotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -36,10 +37,10 @@ class AdminUserController extends ApiBase
                 'email' => $u->getEmail(),
                 'fullName' => $u->getFullName(),
                 'roles' => $u->getRoles(),
-                'apiKey' => $u->getApiKey(),
                 'netSalary' => $u->getNetSalary(),
                 'hireDate' => $u->getHireDate()?->format('Y-m-d'),
                 'leaveInitialBalance' => $u->getLeaveInitialBalance(),
+                'contractType' => method_exists($u,'getContractType') ? $u->getContractType() : null,
                 'departmentId' => $u->getDepartment()?->getId() ? (string)$u->getDepartment()->getId() : null,
                 'managerId' => $u->getManager()?->getId() ? (string)$u->getManager()->getId() : null,
                 'manager2Id' => $u->getManager2()?->getId() ? (string)$u->getManager2()->getId() : null,
@@ -77,10 +78,10 @@ class AdminUserController extends ApiBase
             'email' => $u->getEmail(),
             'fullName' => $u->getFullName(),
             'roles' => $u->getRoles(),
-            'apiKey' => $u->getApiKey(),
             'netSalary' => $u->getNetSalary(),
             'hireDate' => $u->getHireDate()?->format('Y-m-d'),
             'leaveInitialBalance' => $u->getLeaveInitialBalance(),
+                'contractType' => method_exists($u,'getContractType') ? $u->getContractType() : null,
             'departmentId' => $u->getDepartment()?->getId() ? (string)$u->getDepartment()->getId() : null,
             'managerId' => $u->getManager()?->getId() ? (string)$u->getManager()->getId() : null,
             'manager2Id' => $u->getManager2()?->getId() ? (string)$u->getManager2()->getId() : null,
@@ -100,7 +101,7 @@ class AdminUserController extends ApiBase
     
 
     #[Route('/api/admin/users', name: 'api_admin_users_create', methods: ['POST'])]
-    public function create(Request $request, EntityManagerInterface $em, SettingsService $settings): JsonResponse
+    public function create(Request $request, EntityManagerInterface $em, SettingsService $settings, LeaveNotificationService $notifier): JsonResponse
     {
         $this->requireAdmin($request);
         $data = json_decode((string)$request->getContent(), true) ?: [];
@@ -113,6 +114,7 @@ class AdminUserController extends ApiBase
         $managerId = $data['managerId'] ?? null;
         $manager2Id = $data['manager2Id'] ?? null;
         $hireDateStr = (string)($data['hireDate'] ?? '');
+        $contractType = (string)($data['contractType'] ?? '');
         $initialLeaveBalance = $data['initialLeaveBalance'] ?? null;
         if (!is_array($roles) || count($roles) === 0) $roles = ['ROLE_EMPLOYEE'];
 
@@ -128,6 +130,7 @@ class AdminUserController extends ApiBase
         $u = new User();
         $u->setEmail($email);
         $u->setFullName($fullName !== '' ? $fullName : $email);
+        if (method_exists($u,'setContractType')) { $u->setContractType($contractType); }
         $u->setRoles($roles);
         $u->setPasswordHash(password_hash($password, PASSWORD_BCRYPT));
         $u->setApiKey(bin2hex(random_bytes(24)));
@@ -164,16 +167,47 @@ class AdminUserController extends ApiBase
         $em->persist($u);
         $em->flush();
 
+        // Send welcome email with credentials (best-effort)
+        $loginUrl = rtrim((string)($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? ''), '/') . '/login';
+        $subject = 'Votre compte AltraCall HRMS';
+        $pwdPlain = (string)$data['password'];
+        $html = '<div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto">'
+            . '<h2 style="margin:0 0 10px">Bienvenue sur AltraCall HRMS</h2>'
+            . '<p>Bonjour <strong>'.htmlspecialchars($u->getFullName() ?: $u->getEmail(), ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8').'</strong>,</p>'
+            . '<p>Votre compte a été créé. Voici vos informations de connexion :</p>'
+            . '<ul>'
+            . '<li><strong>Email :</strong> '.htmlspecialchars($u->getEmail(), ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8').'</li>'
+            . '<li><strong>Mot de passe :</strong> '.htmlspecialchars($pwdPlain, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8').'</li>'
+            . '</ul>'
+            . '<p style="margin:14px 0">Nous vous recommandons de changer votre mot de passe après votre première connexion.</p>'
+            . (strpos($loginUrl, 'http')===0 ? '<p><a href="'.htmlspecialchars($loginUrl, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8').'" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Se connecter</a></p>' : '')
+            . '<p style="color:#6c757d;font-size:12px;margin-top:24px">Cet email a été envoyé automatiquement — merci de ne pas répondre.</p>'
+            . '</div>';
+        $notifier->notify($u->getEmail(), $subject, $html);
+
+
+        $forceLogout = false;
+        if ($token && ($token->apiKey === $originalApiKey)) {
+            if ($originalRoles !== $u->getRoles()) {
+                $forceLogout = true;
+            }
+            if ($originalApiKey !== $u->getApiKey()) {
+                $forceLogout = true;
+            }
+        }
+
         return $this->jsonOk([
+            'forceLogout' => $forceLogout,
+
             'user' => [
                 'id' => (string)$u->getId(),
                 'email' => $u->getEmail(),
                 'fullName' => $u->getFullName(),
                 'roles' => $u->getRoles(),
-                'apiKey' => $u->getApiKey(),
                 'netSalary' => $u->getNetSalary(),
                 'hireDate' => $u->getHireDate()?->format('Y-m-d'),
                 'leaveInitialBalance' => $u->getLeaveInitialBalance(),
+                'contractType' => method_exists($u,'getContractType') ? $u->getContractType() : null,
             'department' => $u->getDepartment() ? ['id' => (string)$u->getDepartment()->getId(), 'name' => $u->getDepartment()->getName()] : null,
             'manager' => $u->getManager() ? ['id' => (string)$u->getManager()->getId(), 'fullName' => $u->getManager()->getFullName(), 'email' => $u->getManager()->getEmail()] : null,
             'manager2' => $u->getManager2() ? ['id' => (string)$u->getManager2()->getId(), 'fullName' => $u->getManager2()->getFullName(), 'email' => $u->getManager2()->getEmail()] : null,
@@ -185,12 +219,16 @@ class AdminUserController extends ApiBase
     #[Route('/api/admin/users/{id}', name: 'api_admin_users_update', methods: ['PUT'])]
     public function update(string $id, Request $request, EntityManagerInterface $em): JsonResponse
     {
+        $token = $this->requireUser($request);
         $this->requireAdmin($request);
         $data = json_decode((string)$request->getContent(), true) ?: [];
 
         /** @var User|null $u */
         $u = $em->getRepository(User::class)->find($id);
         if (!$u) return $this->json(['error' => 'not_found'], 404);
+
+        $originalRoles = $u->getRoles();
+        $originalApiKey = $u->getApiKey();
 
         if (isset($data['email'])) {
             $email = strtolower(trim((string)$data['email']));
@@ -239,6 +277,31 @@ class AdminUserController extends ApiBase
             $u->setNetSalary($v === null || $v === '' ? null : (float)$v);
         }
 
+        if (array_key_exists('hireDate', $data)) {
+            $hireDateStr = $data['hireDate'];
+            if ($hireDateStr) {
+                try { $u->setHireDate(new \DateTimeImmutable((string)$hireDateStr)); } catch (\Throwable) {}
+            } else {
+                $u->setHireDate(null);
+            }
+        }
+
+        if (array_key_exists('contractType', $data)) {
+            $v = (string)($data['contractType'] ?? '');
+            if (method_exists($u,'setContractType')) { $u->setContractType($v); }
+        }
+
+        if (array_key_exists('initialLeaveBalance', $data)) {
+            $v = $data['initialLeaveBalance'];
+            if ($v === null || $v === '') {
+                // keep existing
+            } else {
+                $f = (float)$v;
+                if ($f < 0) $f = 0; if ($f > 365) $f = 365;
+                $u->setLeaveInitialBalance($f);
+            }
+        }
+
         if (isset($data['roles']) && is_array($data['roles']) && count($data['roles']) > 0) {
             $u->setRoles($data['roles']);
         }
@@ -251,16 +314,28 @@ class AdminUserController extends ApiBase
 
         $em->flush();
 
+        $forceLogout = false;
+        if ($token && ($token->apiKey === $originalApiKey)) {
+            if ($originalRoles !== $u->getRoles()) {
+                $forceLogout = true;
+            }
+            if ($originalApiKey !== $u->getApiKey()) {
+                $forceLogout = true;
+            }
+        }
+
         return $this->jsonOk([
+            'forceLogout' => $forceLogout,
+
             'user' => [
                 'id' => (string)$u->getId(),
                 'email' => $u->getEmail(),
                 'fullName' => $u->getFullName(),
                 'roles' => $u->getRoles(),
-                'apiKey' => $u->getApiKey(),
                 'netSalary' => $u->getNetSalary(),
                 'hireDate' => $u->getHireDate()?->format('Y-m-d'),
                 'leaveInitialBalance' => $u->getLeaveInitialBalance(),
+                'contractType' => method_exists($u,'getContractType') ? $u->getContractType() : null,
             'department' => $u->getDepartment() ? ['id' => (string)$u->getDepartment()->getId(), 'name' => $u->getDepartment()->getName()] : null,
             'manager' => $u->getManager() ? ['id' => (string)$u->getManager()->getId(), 'fullName' => $u->getManager()->getFullName(), 'email' => $u->getManager()->getEmail()] : null,
             'manager2' => $u->getManager2() ? ['id' => (string)$u->getManager2()->getId(), 'fullName' => $u->getManager2()->getFullName(), 'email' => $u->getManager2()->getEmail()] : null,
@@ -278,9 +353,24 @@ class AdminUserController extends ApiBase
         $u = $em->getRepository(User::class)->find($id);
         if (!$u) return $this->json(['error' => 'not_found'], 404);
 
+        $originalRoles = $u->getRoles();
+        $originalApiKey = $u->getApiKey();
+
         $em->remove($u);
         $em->flush();
 
-        return $this->jsonOk(['ok' => true]);
+        $forceLogout = false;
+        if ($token && ($token->apiKey === $originalApiKey)) {
+            if ($originalRoles !== $u->getRoles()) {
+                $forceLogout = true;
+            }
+            if ($originalApiKey !== $u->getApiKey()) {
+                $forceLogout = true;
+            }
+        }
+
+        return $this->jsonOk([
+            'forceLogout' => $forceLogout,
+'ok' => true]);
     }
 }

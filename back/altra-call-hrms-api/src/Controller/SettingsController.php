@@ -44,6 +44,8 @@ class SettingsController extends ApiBase
             'leaveAccrual' => [
                 'perMonth' => $this->settings->leaveAccrualPerMonth(),
                 'defaultInitialBalance' => $this->settings->leaveDefaultInitialBalance(),
+                'cycleDay' => $this->settings->leaveAccrualCycleDay(),
+                'byContract' => $this->settings->leaveAccrualByContract(),
             ],
             'exit' => [
                 'enforceHours' => (bool)$this->settings->get(SettingsService::KEY_EXIT_ENFORCE_HOURS, false),
@@ -126,6 +128,27 @@ class SettingsController extends ApiBase
                 if ($v < 0) $v = 0;
                 if ($v > 365) $v = 365;
                 $this->settings->set(SettingsService::KEY_LEAVE_DEFAULT_INITIAL_BALANCE, $v);
+            }
+            if (array_key_exists('cycleDay', $la)) {
+                $v = (int) $la['cycleDay'];
+                if ($v < 1) $v = 1;
+                if ($v > 28) $v = 28;
+                $this->settings->set(SettingsService::KEY_LEAVE_ACCRUAL_CYCLE_DAY, $v);
+            }
+            if (array_key_exists('byContract', $la)) {
+                $m = $la['byContract'];
+                // store as map of contractType => float
+                if (!is_array($m)) $m = [];
+                $out = [];
+                foreach ($m as $k => $v) {
+                    $key = strtoupper(trim((string)$k));
+                    if ($key === '') continue;
+                    $f = (float)$v;
+                    if ($f < 0) $f = 0;
+                    if ($f > 10) $f = 10;
+                    $out[$key] = $f;
+                }
+                $this->settings->set(SettingsService::KEY_LEAVE_ACCRUAL_BY_CONTRACT, $out);
             }
         }
 

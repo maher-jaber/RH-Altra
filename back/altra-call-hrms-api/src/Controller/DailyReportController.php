@@ -126,7 +126,8 @@ class DailyReportController extends ApiBase
 
         // Managers (ROLE_SUPERIOR) should see reports of their team.
         // Admins can also see their team; and can pass ?scope=all to see everything.
-        $allowed = in_array('ROLE_SUPERIOR', $u->roles ?? [], true) || in_array('ROLE_ADMIN', $u->roles ?? [], true);
+        $allowed = (in_array('ROLE_SUPERIOR', $u->roles ?? [], true) || in_array('ROLE_MANAGER', $u->roles ?? [], true))
+            || in_array('ROLE_ADMIN', $u->roles ?? [], true);
         if (!$allowed) return $this->json(['error'=>'forbidden'],403);
 
         $pg = $this->parsePagination($request);
@@ -185,7 +186,7 @@ class DailyReportController extends ApiBase
         if (!$dr) return $this->json(['error'=>'not_found'], 404);
 
         $isAdmin = in_array('ROLE_ADMIN', $u->roles ?? [], true);
-        $isSuperior = in_array('ROLE_SUPERIOR', $u->roles ?? [], true);
+        $isSuperior = in_array('ROLE_SUPERIOR', $u->roles ?? [], true) || in_array('ROLE_MANAGER', $u->roles ?? [], true);
 
         // Access rules:
         // - Owner can view

@@ -22,7 +22,8 @@ class HrPeopleHubController extends ApiBase
     private function requireHrOrAdmin(Request $request): void
     {
         $u = $this->requireUser($request);
-        if (!$this->hasRole($u, 'ROLE_ADMIN') && !$this->hasRole($u, 'ROLE_HR')) {
+        // RH removed: keep these endpoints admin-only.
+        if (!$this->hasRole($u, 'ROLE_ADMIN')) {
             throw $this->createAccessDeniedException('Forbidden');
         }
     }

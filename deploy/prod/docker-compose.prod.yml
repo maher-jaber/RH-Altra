@@ -1,0 +1,73 @@
+services:
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+
+  mercure:
+    image: dunglas/mercure
+    environment:
+      SERVER_NAME: ':80'
+      MERCURE_PUBLISHER_JWT_KEY: ${MERCURE_JWT_SECRET}
+      MERCURE_SUBSCRIBER_JWT_KEY: ${MERCURE_JWT_SECRET}
+      MERCURE_EXTRA_DIRECTIVES: |
+        cors_origins *
+        anonymous
+
+  api:
+    build:
+      context: ../../back/altra-call-hrms-api
+      dockerfile: docker/prod/Dockerfile.prod
+    environment:
+      APP_ENV: ${APP_ENV}
+      APP_DEBUG: ${APP_DEBUG}
+      APP_SECRET: ${APP_SECRET}
+      DATABASE_URL: ${DATABASE_URL}
+      MERCURE_PUBLIC_URL: ${MERCURE_PUBLIC_URL}
+      MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET}
+      MAILER_DSN: ${MAILER_DSN}
+      REDIS_URL: redis://redis:6379
+      MESSENGER_TRANSPORT_DSN: sync://
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
+    volumes:
+      - api_var:/app/var
+      - api_uploads:/app/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  nginx:
+    build:
+      context: ../..
+      dockerfile: deploy/prod/nginx/Dockerfile.prod
+    image: altra-call-hrms-nginx:prod
+    ports:
+      - "8008:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ../../back/altra-call-hrms-api/public:/var/www/api/public:ro
+      - api_uploads:/var/www/api/public/uploads
+    depends_on:
+      - api
+      - mercure
+
+volumes:
+  db_data:
+  api_var:
+  api_uploads:

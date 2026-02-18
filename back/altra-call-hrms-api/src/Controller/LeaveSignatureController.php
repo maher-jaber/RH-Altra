@@ -20,16 +20,31 @@ class LeaveSignatureController extends ApiBase
         $lr = $em->getRepository(LeaveRequest::class)->find($id);
         if(!$lr) return $this->json(['error'=>'not_found'],404);
 
-        // only request manager or admin
-        $isManager = $lr->getManager() && ((string)$lr->getManager()->getId() === (string)$u->id);
-        if(!$isManager && !in_array('ROLE_ADMIN',$u->roles,true) && !in_array('ROLE_HR',$u->roles,true)) {
+        // only request manager (manager or manager2) or admin
+        $isM1 = $lr->getManager() && ((string)$lr->getManager()->getId() === (string)$u->id);
+        $isM2 = $lr->getManager2() && ((string)$lr->getManager2()->getId() === (string)$u->id);
+        $isAdmin = in_array('ROLE_ADMIN',$u->roles,true);
+
+        if(!$isM1 && !$isM2 && !$isAdmin) {
             return $this->json(['error'=>'forbidden'],403);
         }
 
         $data = json_decode((string)$r->getContent(), true) ?: [];
-        $lr->setManagerSignedAt(new \DateTimeImmutable());
-        $lr->setManagerSignerName((string)($data['name'] ?? $u->fullName));
-        $lr->setManagerSignature($data['signature'] ?? null);
+        $now = new \DateTimeImmutable();
+
+        if($isM2 && !$isAdmin){
+            // Manager 2: sign without overwriting legacy manager signature fields
+            if($lr->getManager2SignedAt()) return $this->json(['error'=>'already_signed'],409);
+            $lr->setManager2SignedAt($now);
+            if(isset($data['comment'])) { $lr->setManager2Comment((string)$data['comment']); }
+        } else {
+            // Manager 1 (or admin acting as manager)
+            if($lr->getManagerSignedAt()) return $this->json(['error'=>'already_signed'],409);
+            $lr->setManagerSignedAt($now);
+            $lr->setManagerSignerName((string)($data['name'] ?? $u->fullName));
+            $lr->setManagerSignature($data['signature'] ?? null);
+            if(isset($data['comment'])) { $lr->setManagerComment((string)$data['comment']); }
+        }
 
         $audit = (new LeaveAudit())
             ->setLeaveRequest($lr)
@@ -42,40 +57,8 @@ class LeaveSignatureController extends ApiBase
         return $this->jsonOk(['ok'=>true]);
     }
 
-    #[Route('/api/leaves/{id}/sign/hr', methods:['POST'])]
-    public function signHr(string $id, Request $r, EntityManagerInterface $em, LeavePdfService $pdf): JsonResponse
-    {
-        $u = $this->requireRole($r, 'ROLE_HR');
-        $lr = $em->getRepository(LeaveRequest::class)->find($id);
-        if(!$lr) return $this->json(['error'=>'not_found'],404);
 
-        $data = json_decode((string)$r->getContent(), true) ?: [];
-        $lr->setHrSignedAt(new \DateTimeImmutable());
-        $lr->setHrSignerName((string)($data['name'] ?? $u->fullName));
-        $lr->setHrSignature($data['signature'] ?? null);
-
-        $audit = (new LeaveAudit())
-            ->setLeaveRequest($lr)
-            ->setAction('SIGN_HR')
-            ->setActor($u->id)
-            ->setComment($data['comment'] ?? null);
-        $em->persist($audit);
-
-        // archive PDF (legal)
-        $pdfFile = $pdf->generate($lr);
-        $archiveDir = $this->getParameter('kernel.project_dir').'/var/archives';
-        if(!is_dir($archiveDir)) @mkdir($archiveDir,0775,true);
-        $dest = $archiveDir.'/leave_'.$lr->getId().'_'.date('Ymd_His').'.pdf';
-        copy($pdfFile, $dest);
-        $sha = hash_file('sha256',$dest);
-
-        $arch = new LeaveArchive();
-        $arch->setLeaveRequest($lr)->setPath(str_replace($this->getParameter('kernel.project_dir').'/', '', $dest))->setSha256($sha);
-        $em->persist($arch);
-
-        $em->flush();
-        return $this->jsonOk(['ok'=>true,'sha256'=>$sha]);
-    }
+    // RH removed: no HR signature endpoint.
 
     #[Route('/api/leaves/{id}/archive', methods:['GET'])]
     public function downloadArchive(string $id, Request $r, EntityManagerInterface $em): Response

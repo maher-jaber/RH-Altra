@@ -25,6 +25,8 @@ class SettingsService
     // Leave accrual (monthly)
     public const KEY_LEAVE_ACCRUAL_PER_MONTH = 'leave_accrual_per_month';
     public const KEY_LEAVE_DEFAULT_INITIAL_BALANCE = 'leave_default_initial_balance';
+    public const KEY_LEAVE_ACCRUAL_CYCLE_DAY = 'leave_accrual_cycle_day';
+    public const KEY_LEAVE_ACCRUAL_BY_CONTRACT = 'leave_accrual_by_contract';
 
     public function __construct(private EntityManagerInterface $em) {}
 
@@ -110,11 +112,93 @@ class SettingsService
         return $v;
     }
 
+
+    /** Day of month (1-28) that defines the leave accrual cycle boundary. Example: 21 means cycle is 21 -> 21. */
+    public function leaveAccrualCycleDay(): int
+    {
+        $v = (int) $this->get(self::KEY_LEAVE_ACCRUAL_CYCLE_DAY, 21);
+        if ($v < 1) $v = 1;
+        if ($v > 28) $v = 28;
+        return $v;
+    }
+
+    /** Map of contractType => monthly accrual rate (days/month). */
+    public function leaveAccrualByContract(): array
+    {
+        $m = $this->get(self::KEY_LEAVE_ACCRUAL_BY_CONTRACT, null);
+        if (!is_array($m)) return [];
+        $out = [];
+        foreach ($m as $k => $v) {
+            $key = strtoupper(trim((string)$k));
+            if ($key === '') continue;
+            $f = (float)$v;
+            if ($f < 0) $f = 0;
+            if ($f > 10) $f = 10;
+            $out[$key] = $f;
+        }
+        return $out;
+    }
+
+    /** Resolve monthly accrual rate for a given contract type (falls back to leaveAccrualPerMonth()). */
+    public function leaveAccrualPerMonthForContract(?string $contractType): float
+    {
+        $base = $this->leaveAccrualPerMonth();
+        if (!$contractType) return $base;
+        $map = $this->leaveAccrualByContract();
+        $key = strtoupper(trim($contractType));
+        if ($key !== '' && array_key_exists($key, $map)) return (float)$map[$key];
+        return $base;
+    }
+
+    /** Compute accrued annual leave allowance for a user for a given year (initial balance + monthly accrual cycles). */
+    public function accruedAnnualAllowanceForUser(User $u, int $year, ?\DateTimeImmutable $asOf = null): float
+    {
+        $accrual = $this->leaveAccrualPerMonthForContract(method_exists($u, 'getContractType') ? $u->getContractType() : null);
+        if ($accrual <= 0) {
+            return (float)$u->getLeaveInitialBalance();
+        }
+
+        $cycleDay = $this->leaveAccrualCycleDay();
+        $today = $asOf ?: new \DateTimeImmutable('today');
+
+        $from = new \DateTimeImmutable(sprintf('%04d-01-01', $year));
+        $to   = new \DateTimeImmutable(sprintf('%04d-12-31', $year));
+
+        $hire = $u->getHireDate() ?: ($u->getCreatedAt() instanceof \DateTimeImmutable ? $u->getCreatedAt() : new \DateTimeImmutable('today'));
+        $start = $hire > $from ? $hire : $from;
+
+        // Accrue only up to "today" for current year (no future accrual)
+        $periodEnd = $to;
+        if ((int)$today->format('Y') === $year && $today < $periodEnd) {
+            $periodEnd = $today;
+        }
+
+        // Find first boundary (cycleDay) on/after $start.
+        $boundaryThisMonth = (new \DateTimeImmutable($start->format('Y-m-01')))
+            ->setDate((int)$start->format('Y'), (int)$start->format('m'), $cycleDay);
+
+        $periodStart = ($start <= $boundaryThisMonth) ? $boundaryThisMonth : $boundaryThisMonth->modify('+1 month');
+
+        // Count completed cycles: each time we pass a boundary after periodStart.
+        $months = 0;
+        if ($periodEnd > $periodStart) {
+            $cursor = $periodStart->modify('+1 month');
+            while ($cursor <= $periodEnd) {
+                $months++;
+                $cursor = $cursor->modify('+1 month');
+            }
+        }
+
+        $allow = (float)$u->getLeaveInitialBalance() + ($months * $accrual);
+        if ($allow < 0) $allow = 0;
+        if ($allow > 3650) $allow = 3650;
+        return $allow;
+    }
     public function roleBucket(User $u): string
     {
         $roles = $u->getRoles();
         if (in_array('ROLE_ADMIN', $roles, true)) return 'admin';
-        if (in_array('ROLE_SUPERIOR', $roles, true)) return 'manager';
+        if (in_array('ROLE_SUPERIOR', $roles, true) || in_array('ROLE_MANAGER', $roles, true)) return 'manager';
         return 'employee';
     }
 

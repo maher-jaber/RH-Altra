@@ -132,40 +132,71 @@ class LeaveNotificationService
         $this->notify((string) $user->getEmail(), 'Décision RH sur votre congé', $this->leaveEmailHtml($lr, 'Décision RH', 'La RH a finalisé votre demande.'));
     }
 
-    /**
-     * Minimal SMTP client (RFC-2821-ish) for local/dev Mailhog.
-     * Supports: smtp://host:port only (no auth, no TLS).
+        /**
+     * Minimal SMTP client for production.
+     *
+     * Supports:
+     * - smtp://user:pass@host:587?encryption=tls   (STARTTLS + AUTH)
+     * - smtps://user:pass@host:465                (TLS implicit + AUTH)
+     * - smtp://host:25                           (no TLS, no auth)
+     *
+     * Notes:
+     * - Best-effort: errors are caught by caller (notify()).
+     * - We avoid external deps (symfony/mailer) to keep the image light.
      */
     private function sendSmtp(string $to, string $subject, string $htmlContent): void
     {
-        $dsn = $this->mailerDsn;
-        $parts = parse_url($dsn);
-        $host = $parts['host'] ?? 'mailhog';
-        $port = (int) ($parts['port'] ?? 1025);
+        $dsn = (string)$this->mailerDsn;
+        if ($dsn === '' || $dsn === 'null://null') {
+            return; // disabled
+        }
 
-        $from = 'hr@altra-call.com';
+        $parts = parse_url($dsn);
+        if (!$parts || !isset($parts['host'])) {
+            throw new \RuntimeException('Invalid MAILER_DSN');
+        }
+
+        $scheme = strtolower((string)($parts['scheme'] ?? 'smtp'));
+        $host   = (string)$parts['host'];
+        $port   = (int)($parts['port'] ?? (($scheme === 'smtps') ? 465 : 587));
+        $user   = isset($parts['user']) ? rawurldecode((string)$parts['user']) : null;
+        $pass   = isset($parts['pass']) ? rawurldecode((string)$parts['pass']) : null;
+
+        parse_str((string)($parts['query'] ?? ''), $q);
+        $enc = strtolower((string)($q['encryption'] ?? '')); // tls => STARTTLS
+
+        $from = (string)($_ENV['MAIL_FROM'] ?? $_SERVER['MAIL_FROM'] ?? 'hr@altra-call.com');
+        $fromName = (string)($_ENV['MAIL_FROM_NAME'] ?? $_SERVER['MAIL_FROM_NAME'] ?? 'ALTRA HRMS');
+        $fromHeader = $fromName !== '' ? sprintf('"%s" <%s>', addcslashes($fromName, '"\\'), $from) : $from;
+
         $to = trim($to);
 
-        $fp = @fsockopen($host, $port, $errno, $errstr, 5);
+        $remote = ($scheme === 'smtps') ? "ssl://{$host}:{$port}" : "{$host}:{$port}";
+        $fp = @stream_socket_client($remote, $errno, $errstr, 8, STREAM_CLIENT_CONNECT);
         if (!$fp) {
             throw new \RuntimeException("SMTP connect failed: {$errstr} ({$errno})");
         }
-        stream_set_timeout($fp, 5);
+        stream_set_timeout($fp, 8);
 
-        $expect = function (array $codes) use ($fp): string {
-            $line = '';
-            while (($l = fgets($fp, 515)) !== false) {
-                $line .= $l;
-                // multi-line responses have a hyphen after the code, final line has a space
-                if (preg_match('/^\d{3} /', $l)) {
-                    break;
-                }
+        $readResponse = function (): string {
+            $out = '';
+            while (($l = fgets($GLOBALS['__smtp_fp'], 515)) !== false) {
+                $out .= $l;
+                if (preg_match('/^\d{3} /', $l)) break;
             }
-            $code = (int) substr(trim($line), 0, 3);
+            return $out;
+        };
+
+        // Use a global handle inside closure without PHP 8.1 readonly issues in anonymous functions.
+        $GLOBALS['__smtp_fp'] = $fp;
+
+        $expect = function (array $codes) use ($readResponse): string {
+            $resp = $readResponse();
+            $code = (int)substr(trim($resp), 0, 3);
             if (!in_array($code, $codes, true)) {
-                throw new \RuntimeException('Unexpected SMTP response: ' . trim($line));
+                throw new \RuntimeException('Unexpected SMTP response: ' . trim($resp));
             }
-            return $line;
+            return $resp;
         };
 
         $send = function (string $cmd) use ($fp): void {
@@ -173,8 +204,38 @@ class LeaveNotificationService
         };
 
         $expect([220]);
-        $send('EHLO altra-hrms');
-        $expect([250]);
+
+        $ehlo = function () use ($send, $expect): void {
+            $send('EHLO altra-hrms');
+            $expect([250]);
+        };
+
+        $ehlo();
+
+        // STARTTLS
+        $wantsStartTls = ($scheme === 'smtp' && $enc === 'tls');
+        if ($wantsStartTls) {
+            $send('STARTTLS');
+            $expect([220]);
+
+            $cryptoOk = @stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+            if (!$cryptoOk) {
+                throw new \RuntimeException('STARTTLS failed (crypto negotiation)');
+            }
+            // EHLO again after TLS
+            $ehlo();
+        }
+
+        // AUTH (optional)
+        if ($user !== null && $user !== '') {
+            // Prefer AUTH LOGIN (widely supported)
+            $send('AUTH LOGIN');
+            $expect([334]);
+            $send(base64_encode($user));
+            $expect([334]);
+            $send(base64_encode((string)$pass));
+            $expect([235]);
+        }
 
         $send('MAIL FROM:<' . $from . '>');
         $expect([250]);
@@ -186,7 +247,7 @@ class LeaveNotificationService
         $expect([354]);
 
         $headers = [
-            'From: ' . $from,
+            'From: ' . $fromHeader,
             'To: ' . $to,
             'Subject: ' . $subject,
             'MIME-Version: 1.0',
@@ -194,11 +255,11 @@ class LeaveNotificationService
         ];
 
         $data = implode("\r\n", $headers) . "\r\n\r\n" . $htmlContent . "\r\n";
-        // End of DATA with <CRLF>.<CRLF>
         fwrite($fp, $data . "\r\n.\r\n");
         $expect([250]);
 
         $send('QUIT');
         fclose($fp);
+        unset($GLOBALS['__smtp_fp']);
     }
 }

@@ -4,7 +4,11 @@ namespace App\Controller;
 
 use App\Entity\ExitPermission;
 use App\Entity\User;
+use App\Entity\Notification;
+use App\Message\PublishNotificationMessage;
+use App\Service\LeaveNotificationService;
 use App\Service\SettingsService;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -12,7 +16,12 @@ use Symfony\Component\Routing\Annotation\Route;
 
 class ExitPermissionController extends ApiBase
 {
-    public function __construct(private EntityManagerInterface $em, private SettingsService $settings) {}
+    public function __construct(
+        private EntityManagerInterface $em,
+        private MessageBusInterface $bus,
+        private LeaveNotificationService $mailer,
+        private SettingsService $settings,
+    ) {}
 
     private function getCurrentUser(Request $request): User
     {
@@ -65,6 +74,28 @@ class ExitPermissionController extends ApiBase
         ]);
     }
 
+    #[Route('/api/exit-permissions/{id}', requirements: ['id' => '\\d+'], methods: ['GET'])]
+    public function getOne(int $id, Request $request): JsonResponse
+    {
+        $token = $this->requireUser($request);
+        $me = $this->getCurrentUser($request);
+
+        /** @var ExitPermission|null $e */
+        $e = $this->em->getRepository(ExitPermission::class)->find($id);
+        if (!$e) return $this->json(['error' => 'not_found'], 404);
+
+        $isAdmin = in_array('ROLE_ADMIN', $token->roles ?? [], true);
+        $isOwner = $e->getUser()?->getId() === $me->getId();
+        $isMgr1 = $e->getManager()?->getId() === $me->getId();
+        $isMgr2 = $e->getManager2()?->getId() === $me->getId();
+
+        if (!$isAdmin && !$isOwner && !$isMgr1 && !$isMgr2) {
+            return $this->json(['error' => 'forbidden'], 403);
+        }
+
+        return $this->jsonOk($this->serialize($e));
+    }
+
        #[Route('/api/exit-permissions', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
@@ -102,6 +133,8 @@ class ExitPermissionController extends ApiBase
         $e->setUser($user);
         $e->setManager($user->getManager());
         $e->setManager2($user->getManager2());
+        $e->setManager($user->getManager());
+        $e->setManager2($user->getManager2());
         $e->setStartAt($startAt);
         $e->setEndAt($endAt);
         $e->setReason(isset($data['reason']) ? (string)$data['reason'] : null);
@@ -115,6 +148,45 @@ class ExitPermissionController extends ApiBase
         $this->em->persist($e);
         $this->em->flush();
 
+        
+        // Notifications (manager + RH) + emails (best-effort)
+        $employee = $user;
+        $recipients = [];
+        if ($e->getManager()) { $recipients[$e->getManager()->getId()] = $e->getManager(); }
+        if ($e->getManager2()) { $recipients[$e->getManager2()->getId()] = $e->getManager2(); }
+
+        // RH removed.
+
+        foreach ($recipients as $to) {
+            $n = new Notification();
+            $n->setUser($to);
+            $n->setTitle('Autorisation de sortie · Nouvelle demande');
+            $n->setBody('Une autorisation de sortie a été soumise et attend traitement.');
+            $n->setType('EXIT');
+            $n->setActionUrl('/exit-permissions/detail/' . $e->getId());
+            $n->setPayload($this->serialize($e));
+            $this->em->persist($n);
+            $this->em->flush();
+
+            $this->bus->dispatch(new PublishNotificationMessage(
+                recipientApiKey: $to->getApiKey(),
+                title: $n->getTitle(),
+                body: (string)$n->getBody(),
+                type: $n->getType(),
+                notificationId: (string)$n->getId(),
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
+            ));
+
+            $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
+              . '<h2>Nouvelle autorisation de sortie</h2>'
+              . '<p>Employé: <b>' . htmlspecialchars($employee->getFullName(), ENT_QUOTES) . '</b></p>'
+              . '<p>Date: <b>' . htmlspecialchars((string)$e->getStartAt()?->format('Y-m-d'), ENT_QUOTES) . '</b><br/>De: <b>' . htmlspecialchars((string)$e->getStartAt()?->format('H:i'), ENT_QUOTES) . '</b> à <b>' . htmlspecialchars((string)$e->getEndAt()?->format('H:i'), ENT_QUOTES) . '</b></p>'
+              . '</div>';
+            if ($this->settings->canSendEmail($to, 'EXIT')) { $this->mailer->notify($to->getEmail(), 'Nouvelle autorisation de sortie', $html); }
+        }
+
         return $this->jsonOk($this->serialize($e), 201);
     }
 
@@ -124,23 +196,22 @@ class ExitPermissionController extends ApiBase
         $me = $this->getCurrentUser($r);
 
         $isAdmin = $this->hasRole($token, 'ROLE_ADMIN');
-        $isManager = $this->hasRole($token, 'ROLE_SUPERIOR');
-        if (!$isAdmin && !$isManager) {
-            return $this->json(['error'=>'forbidden'],403);
-        }
 
         $pg = $this->parsePagination($r);
         $st1 = ExitPermission::STATUS_SUBMITTED;
         $st2 = ExitPermission::STATUS_MANAGER_APPROVED;
 
         $qb = $this->em->createQueryBuilder()
-            ->select('ep')
+            ->select('ep', 'u')
             ->from(ExitPermission::class, 'ep')
+            ->leftJoin('ep.user', 'u')
             ->orderBy('ep.id', 'DESC');
 
         $countQb = $this->em->createQueryBuilder()
             ->select('COUNT(ep2.id)')
             ->from(ExitPermission::class, 'ep2');
+        // For relationship-based filtering we need to be able to reference the employee's manager.
+        $countQb->leftJoin('ep2.user', 'u2');
 
         if ($isAdmin) {
             $qb->where('ep.status IN (:sts)')
@@ -148,23 +219,35 @@ class ExitPermissionController extends ApiBase
             $countQb->where('ep2.status IN (:sts)')
                 ->setParameter('sts', [$st1, $st2]);
         } else {
+            // Relationship-based validation: show only items that still need THIS user's signature.
+            // NOTE: Use IDENTITY() comparisons to avoid edge-cases with proxy/detached entities.
+            $meId = (int)$me->getId();
+
             $qb->where('ep.status IN (:sts)')
                 ->andWhere('(
-                    (ep.manager = :me AND ep.managerSignedAt IS NULL)
+                    (IDENTITY(ep.manager) = :meId)
                     OR
-                    (ep.manager2 = :me AND ep.manager2SignedAt IS NULL)
+                    (IDENTITY(ep.manager2) = :meId)
+                    OR
+                    (u IS NOT NULL AND IDENTITY(u.manager) = :meId)
+                    OR
+                    (u IS NOT NULL AND IDENTITY(u.manager2) = :meId)
                 )')
                 ->setParameter('sts', [$st1, $st2])
-                ->setParameter('me', $me);
+                ->setParameter('meId', $meId);
 
             $countQb->where('ep2.status IN (:sts)')
                 ->andWhere('(
-                    (ep2.manager = :me AND ep2.managerSignedAt IS NULL)
+                    (IDENTITY(ep2.manager) = :meId)
                     OR
-                    (ep2.manager2 = :me AND ep2.manager2SignedAt IS NULL)
+                    (IDENTITY(ep2.manager2) = :meId)
+                    OR
+                    (u2 IS NOT NULL AND IDENTITY(u2.manager) = :meId)
+                    OR
+                    (u2 IS NOT NULL AND IDENTITY(u2.manager2) = :meId)
                 )')
                 ->setParameter('sts', [$st1, $st2])
-                ->setParameter('me', $me);
+                ->setParameter('meId', $meId);
         }
 
         if ($pg['enabled']) {
@@ -247,7 +330,55 @@ class ExitPermissionController extends ApiBase
             $this->em->flush();
         }
 
-        return $this->jsonOk($this->serialize($e));
+        
+        // Notifications (user + managers + RH) + emails (best-effort)
+        $statusFr = match($e->getStatus()) {
+            ExitPermission::STATUS_APPROVED => 'Approuvée',
+            ExitPermission::STATUS_REJECTED => 'Refusée',
+            ExitPermission::STATUS_MANAGER_APPROVED => 'Approuvée (en attente signature)',
+            default => $e->getStatus(),
+        };
+
+        $recipients = [];
+        // employee
+        if ($e->getUser()) { $recipients[$e->getUser()->getId()] = $e->getUser(); }
+        // managers
+        if ($e->getManager()) { $recipients[$e->getManager()->getId()] = $e->getManager(); }
+        if ($e->getManager2()) { $recipients[$e->getManager2()->getId()] = $e->getManager2(); }
+        // RH removed.
+
+        foreach ($recipients as $to) {
+            $n = new Notification();
+            $n->setUser($to);
+            $n->setTitle('Autorisation de sortie · Mise à jour');
+            $n->setBody('Statut: ' . $statusFr);
+            $n->setType('EXIT');
+            $n->setActionUrl('/exit-permissions/detail/' . $e->getId());
+            $n->setPayload($this->serialize($e));
+            $this->em->persist($n);
+            $this->em->flush();
+
+            $this->bus->dispatch(new PublishNotificationMessage(
+                recipientApiKey: $to->getApiKey(),
+                title: $n->getTitle(),
+                body: (string)$n->getBody(),
+                type: $n->getType(),
+                notificationId: (string)$n->getId(),
+                createdAtIso: $n->getCreatedAt()->format(DATE_ATOM),
+                actionUrl: $n->getActionUrl(),
+                payload: $n->getPayload()
+            ));
+
+            $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
+              . '<h2>Autorisation de sortie - ' . htmlspecialchars($statusFr, ENT_QUOTES) . '</h2>'
+              . '<p>Employé: <b>' . htmlspecialchars($e->getUser()?->getFullName() ?: '', ENT_QUOTES) . '</b></p>'
+              . '<p>Date: <b>' . htmlspecialchars((string)$e->getStartAt()?->format('Y-m-d'), ENT_QUOTES) . '</b><br/>De: <b>' . htmlspecialchars((string)$e->getStartAt()?->format('H:i'), ENT_QUOTES) . '</b> à <b>' . htmlspecialchars((string)$e->getEndAt()?->format('H:i'), ENT_QUOTES) . '</b></p>'
+              . ($comment ? '<p>Commentaire: ' . htmlspecialchars($comment, ENT_QUOTES) . '</p>' : '')
+              . '</div>';
+            if ($this->settings->canSendEmail($to, 'EXIT')) { $this->mailer->notify($to->getEmail(), 'Autorisation de sortie - ' . $statusFr, $html); }
+        }
+
+return $this->jsonOk($this->serialize($e));
     }
 
     private function serialize(ExitPermission $e): array

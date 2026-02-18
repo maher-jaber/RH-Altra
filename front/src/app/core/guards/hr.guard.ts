@@ -11,7 +11,7 @@ export const hrGuard: CanActivateFn = () => {
   const router = inject(Router);
   const me = auth.me();
 
-  if (me && (me.roles?.includes('ROLE_ADMIN') || me.roles?.includes('ROLE_HR'))) {
+  if (me && (me.roles?.includes('ROLE_ADMIN') || (me.roles as any)?.includes('ROLE_HR'))) {
     return true;
   }
   return router.parseUrl('/dashboard');

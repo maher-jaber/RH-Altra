@@ -64,7 +64,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
 
     <!-- KPI cards -->
     <div class="row g-3 mb-3" *ngIf="stats() as s; else loadingTpl">
-      <div class="col-12 col-md-6 col-xl-3" *ngIf="auth.hasRole('ROLE_HR') || auth.hasRole('ROLE_ADMIN')">
+      <div class="col-12 col-md-6 col-xl-3" *ngIf="auth.hasRole('ROLE_ADMIN')">
         <div class="kpi-card h-100 p-3">
           <div class="kpi-top">
             <div>
@@ -80,7 +80,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
         </div>
       </div>
 
-      <div class="col-12 col-md-6 col-xl-3" *ngIf="auth.hasRole('ROLE_HR') || auth.hasRole('ROLE_ADMIN')">
+      <div class="col-12 col-md-6 col-xl-3" *ngIf="auth.hasRole('ROLE_ADMIN')">
         <div class="kpi-card h-100 p-3">
           <div class="kpi-top">
             <div>
@@ -96,7 +96,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
         </div>
       </div>
 
-      <div class="col-12 col-md-6 col-xl-3" *ngIf="auth.hasRole('ROLE_SUPERIOR') || auth.hasRole('ROLE_ADMIN')">
+      <div class="col-12 col-md-6 col-xl-3" *ngIf="auth.isManager()">
         <div class="kpi-card h-100 p-3">
           <div class="kpi-top">
             <div>
@@ -112,23 +112,9 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
         </div>
       </div>
 
-      <div class="col-12 col-md-6 col-xl-3" *ngIf="auth.hasRole('ROLE_ADMIN')">
-        <div class="kpi-card h-100 p-3">
-          <div class="kpi-top">
-            <div>
-              <div class="kpi-title">Congés</div>
-              <div class="kpi-sub">En attente (RH)</div>
-            </div>
-            <i class="bi bi-shield-check fs-4"></i>
-          </div>
-          <div class="kpi-value">{{s.kpis.pendingLeavesHr}}</div>
-          <div class="mt-2">
-            <a class="btn btn-sm btn-outline-primary" routerLink="/leaves/pending-hr">Traiter</a>
-          </div>
-        </div>
-      </div>
+      <!-- RH removed: no second step besides manager2 -->
 
-      <div class="col-12 col-md-6 col-xl-3" *ngIf="auth.hasRole('ROLE_SUPERIOR') || auth.hasRole('ROLE_ADMIN')">
+      <div class="col-12 col-md-6 col-xl-3" *ngIf="auth.isManager()">
         <div class="kpi-card h-100 p-3">
           <div class="kpi-top">
             <div>
@@ -207,7 +193,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
         </div>
       </div>
 
-      <div class="col-12 col-xl-6" *ngIf="(auth.hasRole('ROLE_HR') || auth.hasRole('ROLE_ADMIN'))">
+      <div class="col-12 col-xl-6" *ngIf="auth.hasRole('ROLE_ADMIN')">
         <div class="kpi-card h-100 p-3">
           <div class="d-flex align-items-start justify-content-between gap-3">
             <div>
@@ -248,7 +234,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
               </div>
               <i class="bi bi-calendar2-week"></i>
             </div>
-            <div class="mt-2 text-muted">Créer, suivre, valider (manager → RH) et consulter l’historique.</div>
+            <div class="mt-2 text-muted">Créer, suivre, valider (manager 1 / manager 2) et consulter l’historique.</div>
             <div class="mt-3 d-flex gap-2 flex-wrap">
               <a class="btn btn-sm btn-outline-primary" routerLink="/leaves/my">Mes demandes</a>
             </div>

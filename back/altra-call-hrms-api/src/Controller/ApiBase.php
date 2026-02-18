@@ -29,7 +29,7 @@ abstract class ApiBase extends AbstractController
     {
         $user = $this->container->get(AuthContext::class)->fromRequest($request);
         if (!$user) {
-            throw new UnauthorizedHttpException('X-API-KEY', 'Missing or invalid token');
+            throw new UnauthorizedHttpException('Bearer', 'Missing or invalid token');
         }
         return $user;
     }
@@ -53,7 +53,7 @@ abstract class ApiBase extends AbstractController
 protected function requireRole(Request $request, string $role): ApiKeyUser
 {
     $u = $this->requireUser($request);
-    if (!in_array($role, $u->roles, true)) {
+    if (!$this->hasRole($u, $role)) {
         // IMPORTANT: Forbidden must be a 403 (not 401).
         // The front-end clears the auth token on 401 (invalid/expired token).
         // Returning 403 here avoids unintended logouts when a user simply lacks permissions.
@@ -64,7 +64,11 @@ protected function requireRole(Request $request, string $role): ApiKeyUser
 
 protected function hasRole(ApiKeyUser $u, string $role): bool
 {
-    return in_array($role, $u->roles, true);
+    if (in_array($role, $u->roles, true)) return true;
+    // Backward-compatible aliasing between manager roles.
+    if ($role === 'ROLE_SUPERIOR') return in_array('ROLE_MANAGER', $u->roles, true);
+    if ($role === 'ROLE_MANAGER') return in_array('ROLE_SUPERIOR', $u->roles, true);
+    return false;
 }
 
 
@@ -84,6 +88,18 @@ protected function hasRole(ApiKeyUser $u, string $role): bool
         $offset = ($page - 1) * $limit;
         return ['enabled' => $hasPage, 'page' => $page, 'limit' => $limit, 'offset' => $offset];
     }
+
+    protected function isManagerByRelation(EntityManagerInterface $em, User $me): bool
+    {
+        // Consider a user manager if at least one employee references them as manager/manager2.
+        $qb = $em->createQueryBuilder()
+            ->select('COUNT(u.id)')
+            ->from(User::class, 'u')
+            ->where('u.manager = :m OR u.manager2 = :m')
+            ->setParameter('m', $me);
+        return ((int)$qb->getQuery()->getSingleScalarResult()) > 0;
+    }
+
 
     protected function jsonOk(array $data = [], int $status = 200): JsonResponse
     {

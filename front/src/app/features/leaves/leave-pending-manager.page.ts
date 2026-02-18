@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
@@ -53,15 +53,23 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
   </mat-card>
   `
 })
-export class LeavePendingManagerPage implements OnInit{
+export class LeavePendingManagerPage implements OnInit, OnDestroy{
   items=signal<any[]>([]);
   pageIndex = signal(0);
   pageSize = signal(10);
   total = signal(0);
   cols=['employee','period','actions'];
   comment='';
+  private sub: any;
   constructor(private api:LeaveWorkflowService){}
-  async ngOnInit(){ await this.load(); }
+  async ngOnInit(){
+    await this.load();
+    this.sub = this.api.changed$.subscribe(() => { this.load(); });
+  }
+
+  ngOnDestroy(){
+    try{ this.sub?.unsubscribe?.(); }catch{}
+  }
 
   async load(){
     const res = await this.api.pendingManager(this.pageIndex()+1, this.pageSize());

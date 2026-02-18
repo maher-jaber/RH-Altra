@@ -52,8 +52,8 @@ class LeaveIcsController extends ApiBase
     public function department(Request $r, EntityManagerInterface $em): Response
     {
         $u = $this->requireUser($r);
-        // only manager/hr/admin
-        if(!in_array('ROLE_HR',$u->roles,true) && !in_array('ROLE_ADMIN',$u->roles,true) && !in_array('ROLE_MANAGER',$u->roles,true)) {
+        // RH removed: allow managers/admin.
+        if(!in_array('ROLE_ADMIN',$u->roles,true) && !in_array('ROLE_SUPERIOR',$u->roles,true) && !in_array('ROLE_MANAGER',$u->roles,true)) {
             return new Response('forbidden',403);
         }
 

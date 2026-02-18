@@ -64,6 +64,9 @@ private ?self $manager2 = null;
     #[ORM\Column(name: 'leave_initial_balance', type: 'float')]
     private float $leaveInitialBalance = 0.0;
 
+    #[ORM\Column(name: 'contract_type', type: 'string', length: 30, options: ['default' => 'CDI'])]
+    private string $contractType = 'CDI';
+
     public function __construct()
     {
         $this->createdAt = new DateTimeImmutable();
@@ -110,6 +113,15 @@ public function setManager2(?self $manager2): self { $this->manager2 = $manager2
 
     public function getLeaveInitialBalance(): float { return $this->leaveInitialBalance; }
     public function setLeaveInitialBalance(float $v): self { $this->leaveInitialBalance = max(0.0, $v); return $this; }
+
+    public function getContractType(): string { return $this->contractType; }
+    public function setContractType(?string $t): self {
+        $v = strtoupper(trim((string)$t));
+        if ($v === '') $v = 'CDI';
+        if (strlen($v) > 30) $v = substr($v, 0, 30);
+        $this->contractType = $v;
+        return $this;
+    }
 
     public function getCreatedAt(): DateTimeImmutable { return $this->createdAt; }
 

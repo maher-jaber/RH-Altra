@@ -17,7 +17,6 @@ import { LeaveMyPageComponent } from './features/leave/leave-my.page';
 // Congés (nouveau module)
 import { LeaveDashboardPage } from './features/leaves/leave-dashboard.page';
 import { LeaveCalendarPage } from './features/leaves/leave-calendar.page';
-import { LeavePendingHrPage } from './features/leaves/leave-pending-hr.page';
 import { LeavePendingManagerPage } from './features/leaves/leave-pending-manager.page';
 import { LeaveCreatePage } from './features/leaves/leave-create.page';
 import { LeaveDetailPage } from './features/leaves/leave-detail.page';
@@ -31,6 +30,7 @@ import { AdminDepartmentsPage } from './features/admin/admin-departments.page';
 import { AdvancesPageComponent } from './features/advances/advances.page';
 import { AdvanceDetailPage } from './features/advances/advance-detail.page';
 import { ExitPermissionsPageComponent } from './features/exit-permissions/exit-permissions.page';
+import { ExitPermissionDetailPage } from './features/exit-permissions/exit-permission-detail.page';
 import { DailyReportsPageComponent } from './features/daily-reports/daily-reports.page';
 import { ProfilePage } from './features/profile/profile.page';
 import { PeopleHubPage } from './features/hr/people-hub.page';
@@ -55,7 +55,7 @@ export const APP_ROUTES: Routes = [
       { path: 'leaves/detail/:id', component: LeaveDetailPage, title: 'Détail congé' },
       { path: 'leaves/my', component: LeaveMyPageComponent, title: 'Mes demandes de congé' },
       { path: 'leaves/pending-manager', component: LeavePendingManagerPage, title: 'Validation congés · Manager' },
-      { path: 'leaves/pending-hr', component: LeavePendingHrPage, canActivate: [adminGuard], title: 'Validation congés · RH' },
+      // RH removed: validation is manager1 / manager2 only.
       { path: 'leaves/calendar', component: LeaveCalendarPage, title: 'Calendrier congés' },
       // Team calendar is an admin tool (also linked from Settings)
 
@@ -66,6 +66,7 @@ export const APP_ROUTES: Routes = [
       { path: 'advances', component: AdvancesPageComponent, title: 'Avances / Acompte' },
       { path: 'advances/detail/:id', component: AdvanceDetailPage, title: 'Détail avance' },
       { path: 'exit-permissions', component: ExitPermissionsPageComponent, title: 'Autorisations de sortie' },
+      { path: 'exit-permissions/detail/:id', component: ExitPermissionDetailPage, title: 'Détail autorisation' },
       { path: 'daily-reports', component: DailyReportsPageComponent, title: 'Compte-rendu journalier' },
 
       { path: 'notifications', component: NotificationsPage, title: 'Notifications' },

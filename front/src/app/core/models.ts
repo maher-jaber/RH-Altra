@@ -1,10 +1,20 @@
-export type Role = 'ROLE_ADMIN' | 'ROLE_HR' | 'ROLE_SUPERIOR' | 'ROLE_EMPLOYEE';
+// RH role removed: workflow is manager 1 / manager 2 only.
+// Keep backward compatibility: the backend historically used ROLE_SUPERIOR for managers,
+// while some UI parts used ROLE_MANAGER.
+export type Role =
+  | 'ROLE_ADMIN'
+  | 'ROLE_SUPERIOR'
+  | 'ROLE_MANAGER'
+  | 'ROLE_EMPLOYEE'
+  | 'ROLE_HR';
 
 export interface MeResponse {
   id: string;
   fullName: string;
   email?: string; 
   roles: Role[];
+  managedCount?: number;
+  isManager?: boolean;
 }
 
 export interface LeaveRequest {
@@ -35,14 +45,23 @@ export interface AdminUser {
   email: string;
   fullName: string;
   roles: Role[];
-  apiKey: string;
+
+  // Employee fields
   netSalary?: number | null;
   hireDate?: string | null;
   leaveInitialBalance?: number | null;
+  contractType?: string | null;
+
+  // Relations (API may return ids and/or lightweight objects)
+  departmentId?: string | null;
+  managerId?: string | null;
+  manager2Id?: string | null;
+
   department?: Department | null;
   manager?: UserMini | null;
   manager2?: UserMini | null;
-  createdAt: string;
+
+  createdAt?: string;
 }
 
 
@@ -62,6 +81,9 @@ export interface AdvanceRequest {
   updatedAt?: string;
   user: UserMini;
   manager?: UserMini | null;
+  manager2?: UserMini | null;
+  managerSignedAt?: string | null;
+  manager2SignedAt?: string | null;
 }
 
 export interface ExitPermission {
@@ -76,6 +98,9 @@ export interface ExitPermission {
   updatedAt?: string;
   user: UserMini;
   manager?: UserMini | null;
+  manager2?: UserMini | null;
+  managerSignedAt?: string | null;
+  manager2SignedAt?: string | null;
 }
 
 export interface DailyReport {

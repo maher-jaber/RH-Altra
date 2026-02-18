@@ -68,6 +68,6 @@ export class LeaveDashboardPage {
   constructor(private auth: AuthService) {}
 
   canValidate(): boolean {
-    return this.auth.hasRole('ROLE_SUPERIOR') || this.auth.hasRole('ROLE_ADMIN');
+    return this.auth.hasRole('ROLE_ADMIN') || this.auth.isManager();
   }
 }

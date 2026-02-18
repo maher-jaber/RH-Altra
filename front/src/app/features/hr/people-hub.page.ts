@@ -132,15 +132,24 @@ function fmtYmd(d: Date): string {
       <div *ngIf="tab() === 'leaves'">
         <div class="d-flex flex-wrap gap-2 align-items-center justify-content:space-between mb-2">
           <div class="muted">Liste des congés sur la période (filtrable).</div>
-          <select class="form-select form-select-sm" style="max-width: 220px" [(ngModel)]="leaveStatus" (change)="reloadLeaves()">
-            <option [ngValue]="''">Tous statuts</option>
-            <option value="SUBMITTED">SUBMITTED</option>
-            <option value="MANAGER_APPROVED">MANAGER_APPROVED</option>
-            <option value="HR_APPROVED">HR_APPROVED</option>
-            <option value="RH_APPROVED">RH_APPROVED</option>
-            <option value="REJECTED">REJECTED</option>
-            <option value="CANCELLED">CANCELLED</option>
-          </select>
+          <div class="d-flex align-items-center gap-2">
+            <select class="form-select form-select-sm" style="max-width: 220px" [(ngModel)]="leaveStatus" (change)="reloadLeaves(0)">
+              <option [ngValue]="''">Tous statuts</option>
+              <option value="SUBMITTED">Soumis</option>
+              <option value="MANAGER_APPROVED">Approuvé (Manager)</option>
+              <option value="HR_APPROVED">Approuvé (RH)</option>
+              <option value="RH_APPROVED">Approuvé (RH)</option>
+              <option value="REJECTED">Refusé</option>
+              <option value="CANCELLED">Annulé</option>
+            </select>
+
+            <select class="form-select form-select-sm" style="width:110px" [ngModel]="leavesPageSize()" (ngModelChange)="setLeavesPageSize($event)">
+              <option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option>
+            </select>
+            <button class="btn btn-outline-secondary btn-sm" (click)="leavesPrev()" [disabled]="leavesPageIndex()===0">Précédent</button>
+            <button class="btn btn-outline-secondary btn-sm" (click)="leavesNext()" [disabled]="(leavesPageIndex()+1)*leavesPageSize()>=leavesTotal()">Suivant</button>
+            <div class="muted">Total: {{leavesTotal()}}</div>
+          </div>
         </div>
 
         <div class="table-responsive">
@@ -160,7 +169,7 @@ function fmtYmd(d: Date): string {
                 <td>{{it.user?.department?.name || '-'}}</td>
                 <td>{{it.typeLabel || it.type || '-'}}</td>
                 <td>{{it.startDate}} → {{it.endDate}}</td>
-                <td><span class="badge badge-soft">{{it.status}}</span></td>
+                <td><span class="badge badge-soft">{{statusLabel(it.status)}}</span></td>
               </tr>
             </tbody>
           </table>
@@ -170,7 +179,17 @@ function fmtYmd(d: Date): string {
 
       <!-- ADVANCES -->
       <div *ngIf="tab() === 'advances'">
-        <div class="muted mb-2">Liste des avances / acomptes sur la période.</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center justify-content:space-between mb-2">
+          <div class="muted">Liste des avances / acomptes sur la période.</div>
+          <div class="d-flex align-items-center gap-2">
+            <select class="form-select form-select-sm" style="width:110px" [ngModel]="advPageSize()" (ngModelChange)="setAdvPageSize($event)">
+              <option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option>
+            </select>
+            <button class="btn btn-outline-secondary btn-sm" (click)="advPrev()" [disabled]="advPageIndex()===0">Précédent</button>
+            <button class="btn btn-outline-secondary btn-sm" (click)="advNext()" [disabled]="(advPageIndex()+1)*advPageSize()>=advTotal()">Suivant</button>
+            <div class="muted">Total: {{advTotal()}}</div>
+          </div>
+        </div>
         <div class="table-responsive">
           <table class="table table-sm align-middle">
             <thead>
@@ -188,7 +207,7 @@ function fmtYmd(d: Date): string {
                 <td>{{it.user?.department?.name || '-'}}</td>
                 <td><b>{{it.amount}}</b> {{it.currency}}</td>
                 <td>{{it.periodYear}}/{{it.periodMonth}}</td>
-                <td><span class="badge badge-soft">{{it.status}}</span></td>
+                <td><span class="badge badge-soft">{{statusLabel(it.status)}}</span></td>
               </tr>
             </tbody>
           </table>
@@ -198,7 +217,17 @@ function fmtYmd(d: Date): string {
 
       <!-- EXITS -->
       <div *ngIf="tab() === 'exits'">
-        <div class="muted mb-2">Liste des autorisations de sortie sur la période.</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center justify-content:space-between mb-2">
+          <div class="muted">Liste des autorisations de sortie sur la période.</div>
+          <div class="d-flex align-items-center gap-2">
+            <select class="form-select form-select-sm" style="width:110px" [ngModel]="exitPageSize()" (ngModelChange)="setExitPageSize($event)">
+              <option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option>
+            </select>
+            <button class="btn btn-outline-secondary btn-sm" (click)="exitPrev()" [disabled]="exitPageIndex()===0">Précédent</button>
+            <button class="btn btn-outline-secondary btn-sm" (click)="exitNext()" [disabled]="(exitPageIndex()+1)*exitPageSize()>=exitTotal()">Suivant</button>
+            <div class="muted">Total: {{exitTotal()}}</div>
+          </div>
+        </div>
         <div class="table-responsive">
           <table class="table table-sm align-middle">
             <thead>
@@ -216,7 +245,7 @@ function fmtYmd(d: Date): string {
                 <td>{{it.user?.department?.name || '-'}}</td>
                 <td>{{it.startAt}}</td>
                 <td>{{it.endAt}}</td>
-                <td><span class="badge badge-soft">{{it.status}}</span></td>
+                <td><span class="badge badge-soft">{{statusLabel(it.status)}}</span></td>
               </tr>
             </tbody>
           </table>
@@ -226,7 +255,17 @@ function fmtYmd(d: Date): string {
 
       <!-- REPORTS -->
       <div *ngIf="tab() === 'reports'">
-        <div class="muted mb-2">Compte-rendu journalier (optionnel).</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center justify-content:space-between mb-2">
+          <div class="muted">Compte-rendu journalier (optionnel).</div>
+          <div class="d-flex align-items-center gap-2">
+            <select class="form-select form-select-sm" style="width:110px" [ngModel]="repPageSize()" (ngModelChange)="setRepPageSize($event)">
+              <option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option>
+            </select>
+            <button class="btn btn-outline-secondary btn-sm" (click)="repPrev()" [disabled]="repPageIndex()===0">Précédent</button>
+            <button class="btn btn-outline-secondary btn-sm" (click)="repNext()" [disabled]="(repPageIndex()+1)*repPageSize()>=repTotal()">Suivant</button>
+            <div class="muted">Total: {{repTotal()}}</div>
+          </div>
+        </div>
         <div class="table-responsive">
           <table class="table table-sm align-middle">
             <thead>
@@ -287,6 +326,23 @@ export class PeopleHubPage implements OnInit {
   advancesItems = signal<any[]>([]);
   exitsItems = signal<any[]>([]);
   reportsItems = signal<any[]>([]);
+
+  // pagination (hub lists)
+  leavesPageIndex = signal(0);
+  leavesPageSize = signal(25);
+  leavesTotal = signal(0);
+
+  advPageIndex = signal(0);
+  advPageSize = signal(25);
+  advTotal = signal(0);
+
+  exitPageIndex = signal(0);
+  exitPageSize = signal(25);
+  exitTotal = signal(0);
+
+  repPageIndex = signal(0);
+  repPageSize = signal(25);
+  repTotal = signal(0);
   loadingLeaves = signal(false);
   loadingAdvances = signal(false);
   loadingExits = signal(false);
@@ -378,53 +434,115 @@ export class PeopleHubPage implements OnInit {
     }
   }
 
-  async reloadLeaves(): Promise<void> {
+  async reloadLeaves(resetPage?: number): Promise<void> {
+    if (resetPage === 0) this.leavesPageIndex.set(0);
     if (!this.showLeaves) { this.leavesItems.set([]); return; }
     const { start, end } = this.monthRange();
     this.loadingLeaves.set(true);
     try {
-      const res = await this.api.leaves({ from: fmtYmd(start), to: fmtYmd(end), status: this.leaveStatus || undefined, userId: this.selectedEmployeeId || undefined, page: 1, limit: 300 }).toPromise();
+      const res = await this.api.leaves({
+        from: fmtYmd(start),
+        to: fmtYmd(end),
+        status: this.leaveStatus || undefined,
+        userId: this.selectedEmployeeId || undefined,
+        page: this.leavesPageIndex() + 1,
+        limit: this.leavesPageSize(),
+      }).toPromise();
       this.leavesItems.set(res?.items || []);
+      this.leavesTotal.set(res?.meta?.total ?? (res?.items?.length || 0));
     } finally {
       this.loadingLeaves.set(false);
     }
   }
 
-  async reloadAdvances(): Promise<void> {
+  async reloadAdvances(resetPage?: number): Promise<void> {
+    if (resetPage === 0) this.advPageIndex.set(0);
     if (!this.showAdvances) { this.advancesItems.set([]); return; }
     const { start, end } = this.monthRange();
     this.loadingAdvances.set(true);
     try {
-      const res = await this.api.advances({ from: fmtYmd(start), to: fmtYmd(end), userId: this.selectedEmployeeId || undefined, page: 1, limit: 300 }).toPromise();
+      const res = await this.api.advances({
+        from: fmtYmd(start),
+        to: fmtYmd(end),
+        userId: this.selectedEmployeeId || undefined,
+        page: this.advPageIndex() + 1,
+        limit: this.advPageSize(),
+      }).toPromise();
       this.advancesItems.set(res?.items || []);
+      this.advTotal.set(res?.meta?.total ?? (res?.items?.length || 0));
     } finally {
       this.loadingAdvances.set(false);
     }
   }
 
-  async reloadExits(): Promise<void> {
+  async reloadExits(resetPage?: number): Promise<void> {
+    if (resetPage === 0) this.exitPageIndex.set(0);
     if (!this.showExits) { this.exitsItems.set([]); return; }
     const { start, end } = this.monthRange();
     this.loadingExits.set(true);
     try {
-      const res = await this.api.exits({ from: fmtYmd(start), to: fmtYmd(end), userId: this.selectedEmployeeId || undefined, page: 1, limit: 300 }).toPromise();
+      const res = await this.api.exits({
+        from: fmtYmd(start),
+        to: fmtYmd(end),
+        userId: this.selectedEmployeeId || undefined,
+        page: this.exitPageIndex() + 1,
+        limit: this.exitPageSize(),
+      }).toPromise();
       this.exitsItems.set(res?.items || []);
+      this.exitTotal.set(res?.meta?.total ?? (res?.items?.length || 0));
     } finally {
       this.loadingExits.set(false);
     }
   }
 
-  async reloadReports(): Promise<void> {
+  async reloadReports(resetPage?: number): Promise<void> {
+    if (resetPage === 0) this.repPageIndex.set(0);
     if (!this.showReports) { this.reportsItems.set([]); return; }
     const { start, end } = this.monthRange();
     this.loadingReports.set(true);
     try {
-      const res = await this.api.reports({ from: fmtYmd(start), to: fmtYmd(end), userId: this.selectedEmployeeId || undefined, page: 1, limit: 300 }).toPromise();
+      const res = await this.api.reports({
+        from: fmtYmd(start),
+        to: fmtYmd(end),
+        userId: this.selectedEmployeeId || undefined,
+        page: this.repPageIndex() + 1,
+        limit: this.repPageSize(),
+      }).toPromise();
       this.reportsItems.set(res?.items || []);
+      this.repTotal.set(res?.meta?.total ?? (res?.items?.length || 0));
     } finally {
       this.loadingReports.set(false);
     }
   }
+
+  // UI helpers
+  statusLabel(v: string): string {
+    const s = (v || '').toUpperCase();
+    if (s === 'DRAFT') return 'Brouillon';
+    if (s === 'SUBMITTED') return 'Soumis';
+    if (s === 'MANAGER_APPROVED') return 'Approuvé (Manager)';
+    if (s === 'HR_APPROVED' || s === 'RH_APPROVED' || s === 'APPROVED') return 'Approuvé';
+    if (s === 'REJECTED') return 'Refusé';
+    if (s === 'CANCELLED') return 'Annulé';
+    return v || '—';
+  }
+
+  // pagination actions
+  setLeavesPageSize(v:any){ const n = parseInt(String(v),10) || 25; this.leavesPageSize.set(n); this.reloadLeaves(0); }
+  leavesPrev(){ if(this.leavesPageIndex()===0) return; this.leavesPageIndex.set(this.leavesPageIndex()-1); this.reloadLeaves(); }
+  leavesNext(){ if((this.leavesPageIndex()+1)*this.leavesPageSize()>=this.leavesTotal()) return; this.leavesPageIndex.set(this.leavesPageIndex()+1); this.reloadLeaves(); }
+
+  setAdvPageSize(v:any){ const n = parseInt(String(v),10) || 25; this.advPageSize.set(n); this.reloadAdvances(0); }
+  advPrev(){ if(this.advPageIndex()===0) return; this.advPageIndex.set(this.advPageIndex()-1); this.reloadAdvances(); }
+  advNext(){ if((this.advPageIndex()+1)*this.advPageSize()>=this.advTotal()) return; this.advPageIndex.set(this.advPageIndex()+1); this.reloadAdvances(); }
+
+  setExitPageSize(v:any){ const n = parseInt(String(v),10) || 25; this.exitPageSize.set(n); this.reloadExits(0); }
+  exitPrev(){ if(this.exitPageIndex()===0) return; this.exitPageIndex.set(this.exitPageIndex()-1); this.reloadExits(); }
+  exitNext(){ if((this.exitPageIndex()+1)*this.exitPageSize()>=this.exitTotal()) return; this.exitPageIndex.set(this.exitPageIndex()+1); this.reloadExits(); }
+
+  setRepPageSize(v:any){ const n = parseInt(String(v),10) || 25; this.repPageSize.set(n); this.reloadReports(0); }
+  repPrev(){ if(this.repPageIndex()===0) return; this.repPageIndex.set(this.repPageIndex()-1); this.reloadReports(); }
+  repNext(){ if((this.repPageIndex()+1)*this.repPageSize()>=this.repTotal()) return; this.repPageIndex.set(this.repPageIndex()+1); this.reloadReports(); }
 
   private indexEvents(): Map<string, { title: string; color: string }[]> {
     const { start, end } = this.monthRange();

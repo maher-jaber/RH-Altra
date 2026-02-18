@@ -7,6 +7,7 @@ use App\Entity\Notification;
 use App\Message\PublishNotificationMessage;
 use App\Service\LeaveNotificationService;
 use App\Service\WorkingDaysService;
+use App\Service\SettingsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -74,8 +75,9 @@ class LeaveRequestCrudController extends ApiBase
         $isAdmin = in_array('ROLE_ADMIN', $token->roles ?? [], true);
         $isOwner = $lr->getUser()?->getId() === $me->getId();
         $isManager = $lr->getManager()?->getId() === $me->getId();
+        $isManager2 = $lr->getManager2()?->getId() === $me->getId();
 
-        if (!$isAdmin && !$isOwner && !$isManager) {
+        if (!$isAdmin && !$isOwner && !$isManager && !$isManager2) {
             return $this->json(['error' => 'forbidden'], 403);
         }
 
@@ -84,7 +86,7 @@ class LeaveRequestCrudController extends ApiBase
 
 
 #[Route('/api/leaves', methods:['POST'])]
-    public function create(Request $r, EntityManagerInterface $em, WorkingDaysService $svc): JsonResponse
+    public function create(Request $r, EntityManagerInterface $em, WorkingDaysService $svc, SettingsService $settings): JsonResponse
     {
         $u = $this->requireDbUser($r, $em);
         $data = json_decode((string)$r->getContent(), true) ?: [];
@@ -159,16 +161,20 @@ class LeaveRequestCrudController extends ApiBase
                 ->from(LeaveRequest::class,'l2')
                 ->where('l2.user = :u')
                 ->andWhere('l2.type = :t')
-                ->andWhere('l2.status = :s')
+                ->andWhere('l2.status IN (:sts)')
                 ->andWhere('l2.startDate >= :from AND l2.endDate <= :to')
-                ->setParameters(['u'=>$u,'t'=>$type,'s'=>LeaveRequest::STATUS_HR_APPROVED,'from'=>$from,'to'=>$to]);
+                ->setParameters(['u'=>$u,'t'=>$type,'sts'=>[LeaveRequest::STATUS_SUBMITTED, LeaveRequest::STATUS_MANAGER_APPROVED, LeaveRequest::STATUS_HR_APPROVED],'from'=>$from,'to'=>$to]);
             $used = (float)$qb2->getQuery()->getSingleScalarResult();
-            if ($used + $days > $type->getAnnualAllowance()) {
+            $allowance = $type->getAnnualAllowance();
+            if ($type->getCode() === 'ANNUAL') {
+                $allowance = $settings->accruedAnnualAllowanceForUser($u, $year, new \DateTimeImmutable('today'));
+            }
+            if ($used + $days > $allowance) {
                 return $this->json([
                     'error' => 'insufficient_balance',
                     'usedDays' => $used,
                     'requestedDays' => $days,
-                    'allowance' => $type->getAnnualAllowance()
+                    'allowance' => $allowance
                 ], 409);
             }
         }
@@ -328,23 +334,46 @@ class LeaveRequestCrudController extends ApiBase
     {
         $t = $lr->getType();
         $u = $lr->getUser();
+        $m1 = $lr->getManager();
+        $m2 = method_exists($lr, 'getManager2') ? $lr->getManager2() : null;
+
         return [
             'id' => (string)$lr->getId(),
             'type' => $t ? [
-                'id'=>(string)$t->getId(),
-                'code'=>$t->getCode(),
-                'label'=>$t->getLabel(),
-                'requiresCertificate'=>$t->getRequiresCertificate(),
-                'annualAllowance'=>$t->getAnnualAllowance()
+                'id' => (string)$t->getId(),
+                'code' => $t->getCode(),
+                'label' => $t->getLabel(),
+                'requiresCertificate' => $t->getRequiresCertificate(),
+                'annualAllowance' => $t->getAnnualAllowance(),
             ] : null,
-            'user' => $u ? ['id'=>(string)$u->getId(),'fullName'=>$u->getFullName(),'email'=>$u->getEmail()] : null,
+            'user' => $u ? [
+                'id' => (string)$u->getId(),
+                'fullName' => $u->getFullName(),
+                'email' => $u->getEmail(),
+            ] : null,
+            'manager' => $m1 ? [
+                'id' => (string)$m1->getId(),
+                'fullName' => $m1->getFullName(),
+                'email' => $m1->getEmail(),
+            ] : null,
+            'manager2' => $m2 ? [
+                'id' => (string)$m2->getId(),
+                'fullName' => $m2->getFullName(),
+                'email' => $m2->getEmail(),
+            ] : null,
             'startDate' => $lr->getStartDate()?->format('Y-m-d'),
             'endDate' => $lr->getEndDate()?->format('Y-m-d'),
             'daysCount' => $lr->getDaysCount(),
             'status' => $lr->getStatus(),
             'note' => $lr->getNote(),
             'certificatePath' => $lr->getCertificatePath(),
+
+            // Workflow
+            'managerSignedAt' => $lr->getManagerSignedAt()?->format(DATE_ATOM),
+            'manager2SignedAt' => method_exists($lr,'getManager2SignedAt') ? $lr->getManager2SignedAt()?->format(DATE_ATOM) : null,
+            'hrSignedAt' => method_exists($lr,'getHrSignedAt') ? $lr->getHrSignedAt()?->format(DATE_ATOM) : null,
             'managerComment' => method_exists($lr,'getManagerComment') ? $lr->getManagerComment() : null,
+            'manager2Comment' => method_exists($lr,'getManager2Comment') ? $lr->getManager2Comment() : null,
             'hrComment' => method_exists($lr,'getHrComment') ? $lr->getHrComment() : null,
         ];
     }

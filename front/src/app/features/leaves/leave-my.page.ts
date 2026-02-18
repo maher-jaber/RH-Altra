@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
@@ -32,7 +32,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
       </ng-container>
       <ng-container matColumnDef="status">
         <th mat-header-cell *matHeaderCellDef>Statut</th>
-        <td mat-cell *matCellDef="let x"><b>{{x.status}}</b></td>
+        <td mat-cell *matCellDef="let x"><b>{{statusLabel(x.status)}}</b></td>
       </ng-container>
       <ng-container matColumnDef="actions">
         <th mat-header-cell *matHeaderCellDef></th>
@@ -47,14 +47,25 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
   </mat-card>
   `
 })
-export class LeaveMyPage implements OnInit{
+export class LeaveMyPage implements OnInit, OnDestroy{
   items=signal<any[]>([]);
   cols=['type','period','status','actions'];
   pageIndex=signal(0);
   pageSize=signal(10);
   total=signal(0);
+  private sub: any;
+
   constructor(private api:LeaveWorkflowService){}
-  async ngOnInit(){ await this.load(); }
+
+  async ngOnInit(){
+    await this.load();
+    // Important for tabbed UI: refresh list after a leave is created/submitted without forcing navigation.
+    this.sub = this.api.changed$.subscribe(() => { this.load(); });
+  }
+
+  ngOnDestroy(){
+    try{ this.sub?.unsubscribe?.(); }catch{}
+  }
 
   async load(){
     const page=this.pageIndex()+1;
@@ -68,5 +79,16 @@ export class LeaveMyPage implements OnInit{
     this.pageIndex.set(ev.pageIndex);
     this.pageSize.set(ev.pageSize);
     await this.load();
+  }
+
+  statusLabel(v: string): string {
+    const s = (v || '').toUpperCase();
+    if (s === 'DRAFT') return 'Brouillon';
+    if (s === 'SUBMITTED') return 'Soumis';
+    if (s === 'MANAGER_APPROVED') return 'Approuvé (Manager)';
+    if (s === 'HR_APPROVED' || s === 'APPROVED') return 'Approuvé';
+    if (s === 'REJECTED') return 'Refusé';
+    if (s === 'CANCELLED') return 'Annulé';
+    return v || '—';
   }
 }

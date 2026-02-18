@@ -128,7 +128,7 @@ type PageMeta = { page: number; limit: number; total: number; pages: number };
                     [class.text-bg-success]="a.status==='APPROVED'"
                     [class.text-bg-danger]="a.status==='REJECTED'"
                     [class.text-bg-secondary]="a.status!=='SUBMITTED' && a.status!=='MANAGER_APPROVED' && a.status!=='APPROVED' && a.status!=='REJECTED'">
-                    {{a.status}}
+                    {{ statusLabel(a.status) }}
                   </span>
                 </td>
                 <td class="text-end text-muted small">{{a.createdAt | date:'short'}}</td>
@@ -231,7 +231,7 @@ export class AdvancesPageComponent implements OnInit {
   }
 
   canValidate(): boolean {
-    return this.auth.hasRole('ROLE_ADMIN') || this.auth.hasRole('ROLE_SUPERIOR');
+    return this.auth.hasRole('ROLE_ADMIN') || this.auth.isManager();
   }
 
   private normalizeListResponse(res: any): { items: any[]; meta: PageMeta | null } {
@@ -312,5 +312,17 @@ export class AdvancesPageComponent implements OnInit {
     const y = a.periodYear || new Date(a.createdAt).getFullYear();
     const m = String(a.periodMonth || (new Date(a.createdAt).getMonth() + 1)).padStart(2, '0');
     return `${m}/${y}`;
+  }
+
+statusLabel(status: string): string {
+    const map: Record<string,string> = {
+      SUBMITTED: 'Soumise',
+      MANAGER_APPROVED: 'Validée (Manager 1)',
+      APPROVED: 'Validée',
+      REJECTED: 'Refusée',
+      CANCELLED: 'Annulée',
+      DRAFT: 'Brouillon',
+    };
+    return map[status] ?? status;
   }
 }

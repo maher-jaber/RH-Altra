@@ -48,7 +48,7 @@ export class LeaveActionsTab implements OnInit{
   msg = signal('');
   comment = '';
 
-  meId = computed(() => this.auth.me()?.id);
+  meId = computed(() => Number(this.auth.me()?.id));
 
   constructor(private api: LeaveWorkflowService, private auth: AuthService){}
 
@@ -62,8 +62,9 @@ export class LeaveActionsTab implements OnInit{
   canAct(){
     const lr = this.leave();
     if(!lr) return false;
-    const isManager = this.auth.hasRole('ROLE_SUPERIOR') && (lr.manager?.id === this.meId());
-    const isManager2 = this.auth.hasRole('ROLE_SUPERIOR') && (lr.manager2?.id === this.meId());
+    // Manager permission is relationship-based (manager/manager2), not only ROLE_SUPERIOR.
+    const isManager = (lr.manager?.id === this.meId());
+    const isManager2 = (lr.manager2?.id === this.meId());
     const alreadySigned = (!!lr.managerSignedAt && isManager) || (!!lr.manager2SignedAt && isManager2);
     if((isManager || isManager2) && lr.status === 'SUBMITTED' && !alreadySigned) return true;
     return false;

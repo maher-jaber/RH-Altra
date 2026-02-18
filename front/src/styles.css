@@ -61,12 +61,140 @@ html, body { height: 100%; }
 body {
   margin: 0;
   font-family: Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.45;
   color: var(--text);
   background:
     radial-gradient(900px 600px at 12% 8%, rgba(29,78,216,.16), transparent 60%),
     radial-gradient(900px 600px at 88% 20%, rgba(124,58,237,.14), transparent 60%),
     radial-gradient(900px 620px at 70% 92%, rgba(8,145,178,.12), transparent 55%),
     linear-gradient(180deg, var(--bg), var(--bg-2));
+}
+
+/* =========================================================
+   Enterprise defaults (uniform, modern, high readability)
+   ========================================================= */
+
+/* Links */
+a { color: var(--bs-link-color); }
+a:hover { color: var(--bs-link-hover-color); }
+
+/* Headings (clean hierarchy) */
+h1 { font-size: 24px; font-weight: 900; margin: 0 0 10px; }
+h2 { font-size: 20px; font-weight: 900; margin: 0 0 10px; }
+h3 { font-size: 16px; font-weight: 900; margin: 0 0 8px; }
+
+/* Page chrome */
+.container-fluid { max-width: var(--container); margin: 0 auto; }
+
+/* Cards */
+.card-header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--stroke) !important;
+}
+.card-header h5 { font-weight: 900; letter-spacing: .15px; }
+
+/* Tabs (modern pills) */
+.nav-tabs {
+  border-bottom: 0;
+  gap: 8px;
+}
+.nav-tabs .nav-link {
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 800;
+  color: var(--text);
+  background: var(--surface-2);
+  transition: transform var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
+}
+.nav-tabs .nav-link:hover { transform: translateY(-1px); }
+.nav-tabs .nav-link.active {
+  background: linear-gradient(90deg, rgba(29,78,216,.18), rgba(124,58,237,.12));
+  border-color: rgba(29,78,216,.28);
+}
+
+/* Buttons (more corporate) */
+.btn {
+  border-radius: 14px;
+  font-weight: 800;
+  letter-spacing: .1px;
+}
+.btn-sm { border-radius: 12px; }
+.btn-lg { border-radius: 16px; padding: 12px 16px; }
+.btn-primary {
+  border: 0;
+  background-image: linear-gradient(135deg, rgba(29,78,216,0.95), rgba(124,58,237,0.90));
+  box-shadow: 0 12px 26px rgba(29,78,216,.18);
+}
+.btn-primary:hover { filter: brightness(1.02); }
+.btn-outline-secondary,
+.btn-outline-primary,
+.btn-outline-danger {
+  background: var(--surface);
+  border-color: var(--stroke);
+}
+
+/* Forms */
+.form-label { font-weight: 800; color: var(--text); }
+.form-control, .form-select {
+  border-radius: 14px;
+  border-color: var(--field-stroke);
+  background: var(--field-bg);
+  color: var(--text);
+}
+.form-control:focus, .form-select:focus {
+  border-color: rgba(29,78,216,.55);
+  box-shadow: 0 0 0 .25rem var(--focus);
+}
+.input-group-text {
+  border-radius: 14px;
+  border-color: var(--field-stroke);
+  background: var(--field-bg-2);
+  color: var(--text-2);
+  font-weight: 800;
+}
+
+/* Tables (uniform) */
+.table {
+  border-color: var(--stroke);
+}
+.table thead th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .10em;
+  font-weight: 900;
+}
+.table-hover>tbody>tr:hover>* {
+  background: rgba(29,78,216,.06);
+}
+
+/* Badges */
+.badge {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-weight: 900;
+  letter-spacing: .2px;
+}
+
+/* Empty state helper */
+.empty-state {
+  border: 1px dashed var(--stroke);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  padding: 18px;
+  text-align: center;
+  color: var(--text-2);
+}
+.empty-state .icon {
+  width: 54px; height: 54px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 18px;
+  border: 1px solid var(--stroke);
+  background: var(--surface);
+  color: var(--text);
+  margin-bottom: 10px;
 }
 
 /* Dark mode tokens (set via <html data-ui-mode="dark">) */
@@ -115,6 +243,40 @@ body, .mat-typography { color: var(--text) !important; }
   border: 1px solid var(--stroke) !important;
   border-radius: var(--r-lg) !important;
   box-shadow: 0 10px 28px rgba(0,0,0,0.10);
+}
+
+/* =========================================================
+   GLOBAL LAYOUT UNIFORMITY
+   - keep spacing consistent across all pages
+   - make dialogs/modals always usable (scroll)
+   ========================================================= */
+
+/* Consistent vertical rhythm inside route content */
+.route-host > * { display: block; }
+.route-host > * + * { margin-top: 16px; }
+
+/* Material cards: consistent padding + spacing */
+.mat-mdc-card { padding: 18px; }
+.mat-mdc-card h2 { margin: 0 0 12px; }
+.mat-mdc-card h3 { margin: 0 0 10px; }
+
+/* Bootstrap cards: consistent bottom spacing */
+.card { margin-bottom: 16px; }
+
+/* Dialogs: ensure they never exceed viewport; content scrolls */
+.mat-mdc-dialog-container .mdc-dialog__surface {
+  max-height: calc(100vh - 64px) !important;
+  display: flex;
+  flex-direction: column;
+}
+.mat-mdc-dialog-content {
+  max-height: calc(100vh - 240px) !important;
+  overflow: auto !important;
+}
+/* If a dialog uses plain content container */
+.mat-mdc-dialog-container .mdc-dialog__content {
+  max-height: calc(100vh - 240px) !important;
+  overflow: auto !important;
 }
 
 .mat-mdc-table { background: var(--surface) !important; }

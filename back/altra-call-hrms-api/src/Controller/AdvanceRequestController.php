@@ -88,9 +88,11 @@ class AdvanceRequestController extends ApiBase
 
         $isAdmin = in_array('ROLE_ADMIN', $token->roles ?? [], true);
         $isOwner = $a->getUser()?->getId() === $me->getId();
+        // Allow both manager1 and manager2 to view the detail
         $isManager = $a->getManager()?->getId() === $me->getId();
+        $isManager2 = $a->getManager2()?->getId() === $me->getId();
 
-        if (!$isAdmin && !$isOwner && !$isManager) {
+        if (!$isAdmin && !$isOwner && !$isManager && !$isManager2) {
             return $this->json(['error' => 'forbidden'], 403);
         }
 
@@ -222,6 +224,10 @@ class AdvanceRequestController extends ApiBase
                     if ($this->settings->canSendEmail($mgr, 'ADVANCE')) { $this->mailer->notify($mgr->getEmail(), 'Nouvelle demande d\'avance', $html); }
                 } catch (\Throwable) { /* best-effort */ }
             }
+
+
+            // RH removed: only employee + managers are notified.
+
         }
 
         return $this->jsonOk($this->serialize($a), 201);
@@ -234,10 +240,6 @@ class AdvanceRequestController extends ApiBase
         $me = $this->getCurrentUser($request);
 
         $isAdmin = $this->hasRole($token, 'ROLE_ADMIN');
-        $isManager = $this->hasRole($token, 'ROLE_SUPERIOR');
-        if (!$isAdmin && !$isManager) {
-            return $this->json(['error' => 'forbidden'], 403);
-        }
 
         $pg = $this->parsePagination($request);
 
@@ -245,13 +247,15 @@ class AdvanceRequestController extends ApiBase
         $st2 = AdvanceRequest::STATUS_MANAGER_APPROVED;
 
         $qb = $this->em->createQueryBuilder()
-            ->select('a')
+            ->select('a', 'u')
             ->from(AdvanceRequest::class, 'a')
+            ->leftJoin('a.user', 'u')
             ->orderBy('a.id', 'DESC');
 
         $countQb = $this->em->createQueryBuilder()
             ->select('COUNT(a2.id)')
-            ->from(AdvanceRequest::class, 'a2');
+            ->from(AdvanceRequest::class, 'a2')
+            ->leftJoin('a2.user', 'u2');
 
         if ($isAdmin) {
             $qb->where('a.status IN (:sts)')
@@ -259,24 +263,35 @@ class AdvanceRequestController extends ApiBase
             $countQb->where('a2.status IN (:sts)')
                 ->setParameter('sts', [$st1, $st2]);
         } else {
-            // Manager sees only items that still need THEIR signature (manager1 OR manager2)
+            // Relationship-based validation: show only items that still need THIS user's signature (manager1 OR manager2)
+            // NOTE: Use IDENTITY() comparisons to avoid edge-cases with proxy/detached entities.
+            $meId = (int)$me->getId();
+
             $qb->where('a.status IN (:sts)')
                 ->andWhere('(
-                    (a.manager = :me AND a.managerSignedAt IS NULL)
+                    (IDENTITY(a.manager) = :meId)
                     OR
-                    (a.manager2 = :me AND a.manager2SignedAt IS NULL)
+                    (IDENTITY(a.manager2) = :meId)
+                    OR
+                    (u IS NOT NULL AND IDENTITY(u.manager) = :meId)
+                    OR
+                    (u IS NOT NULL AND IDENTITY(u.manager2) = :meId)
                 )')
                 ->setParameter('sts', [$st1, $st2])
-                ->setParameter('me', $me);
+                ->setParameter('meId', $meId);
 
             $countQb->where('a2.status IN (:sts)')
                 ->andWhere('(
-                    (a2.manager = :me AND a2.managerSignedAt IS NULL)
+                    (IDENTITY(a2.manager) = :meId)
                     OR
-                    (a2.manager2 = :me AND a2.manager2SignedAt IS NULL)
+                    (IDENTITY(a2.manager2) = :meId)
+                    OR
+                    (u2 IS NOT NULL AND IDENTITY(u2.manager) = :meId)
+                    OR
+                    (u2 IS NOT NULL AND IDENTITY(u2.manager2) = :meId)
                 )')
                 ->setParameter('sts', [$st1, $st2])
-                ->setParameter('me', $me);
+                ->setParameter('meId', $meId);
         }
 
         if ($pg['enabled']) {

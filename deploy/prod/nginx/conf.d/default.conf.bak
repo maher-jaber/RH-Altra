@@ -1,0 +1,59 @@
+server {
+  listen 80;
+  server_name _;
+
+  # -------- FRONT (Angular static) --------
+  root /var/www/front;
+  index index.html;
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+
+  # -------- API (Symfony) --------
+  # /api (sans slash) => /api/
+  location = /api {
+    return 301 /api/;
+  }
+
+  # Symfony public dir is mounted into NGINX at /var/www/api/public
+  # We must NOT rely on the front "root" for /api requests.
+  location ^~ /api/ {
+    alias /var/www/api/public/;
+    try_files $uri /index.php$is_args$args;
+  }
+
+  # PHP front controller
+  location ~ ^/api/index\.php(/|$) {
+    include fastcgi_params;
+
+    # IMPORTANT:
+    # SCRIPT_FILENAME must be a path that exists INSIDE the PHP-FPM container (service "api").
+    # In our prod image, the app is located at /app.
+    fastcgi_param SCRIPT_FILENAME /app/public/index.php;
+    fastcgi_param DOCUMENT_ROOT /app/public;
+
+    fastcgi_pass api:9000;
+    fastcgi_read_timeout 120s;
+  }
+
+  # Block direct PHP access
+  location ~ \.php$ {
+    return 404;
+  }
+
+  # -------- Mercure (optional) --------
+  location /.well-known/mercure {
+    proxy_pass http://mercure/.well-known/mercure;
+    proxy_read_timeout 24h;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  add_header X-Content-Type-Options nosniff;
+  add_header X-Frame-Options SAMEORIGIN;
+  add_header Referrer-Policy strict-origin-when-cross-origin;
+}

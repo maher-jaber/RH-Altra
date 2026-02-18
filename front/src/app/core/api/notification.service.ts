@@ -34,7 +34,16 @@ export class NotificationService {
     if (!apiKey) return () => {};
 
     const topic = `/users/${encodeURIComponent(apiKey)}/notifications`;
-    const url = new URL(environment.mercureUrl);
+    const raw = (environment.mercureUrl || '').trim();
+    // Mercure is optional. If it's not configured, just disable live updates.
+    if (!raw) {
+      // eslint-disable-next-line no-console
+      console.warn('Mercure disabled: no mercureUrl configured');
+      return () => {};
+    }
+
+    // Support relative URLs like '/.well-known/mercure'
+    const url = new URL(raw, window.location.origin);
     url.searchParams.set('topic', topic);
 
     const es = new EventSource(url.toString(), { withCredentials: false });

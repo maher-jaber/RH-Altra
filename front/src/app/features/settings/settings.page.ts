@@ -81,6 +81,30 @@ import { AlertService } from '../../core/ui/alert.service';
         </div>
 
         <div class="col-12 col-md-4">
+          <label class="form-label">Jour de clôture acquisition (1-28)</label>
+          <input class="form-control" type="number" min="1" max="28" step="1" [(ngModel)]="model.leaveAccrual!.cycleDay" [ngModelOptions]="{standalone:true}">
+          <div class="text-muted" style="font-size:12px">Exemple 21 : un mois complet est compté de 21 → 21.</div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Taux d’acquisition par type de contrat (jours/mois)</label>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead><tr><th>Type</th><th style="width:160px">Jours/mois</th><th style="width:80px"></th></tr></thead>
+              <tbody>
+                <tr *ngFor="let k of contractKeys()">
+                  <td><input class="form-control form-control-sm" [(ngModel)]="contractKeyEdits[k]" (blur)="commitRename(k)" [ngModelOptions]="{standalone:true}"></td>
+                  <td><input class="form-control form-control-sm" type="number" min="0" max="10" step="0.25" [(ngModel)]="model.leaveAccrual!.byContract![k]" [ngModelOptions]="{standalone:true}"></td>
+                  <td><button class="btn btn-outline-danger btn-sm" (click)="removeContract(k)">X</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <button class="btn btn-outline-primary btn-sm" (click)="addContract()">+ Ajouter un type</button>
+          <div class="text-muted" style="font-size:12px">Si un type n’existe pas dans la liste, le système utilise le taux “Acquisition mensuelle” par défaut.</div>
+        </div>
+
+        <div class="col-12 col-md-4">
           <label class="form-label">Solde initial par défaut (nouvel employé)</label>
           <input class="form-control" type="number" min="0" max="365" step="0.5" [(ngModel)]="model.leaveAccrual!.defaultInitialBalance" [ngModelOptions]="{standalone:true}">
           <div class="text-muted" style="font-size:12px">Appliqué à la création d’un employé si tu ne renseignes pas un solde initial.</div>
@@ -215,6 +239,9 @@ export class SettingsPage implements OnInit {
   holidayYear = signal<number>(new Date().getFullYear());
   holidays = signal<HolidayItem[]>([]);
   holidaysLoading = signal(false);
+
+	  // Edit buffers for "type de contrat" keys (prevents input from being overwritten while typing)
+	  contractKeyEdits: Record<string, string> = {};
   model: AppSettings = {
     mailNotifications: {
       employee: { ALL: true, LEAVE: true, ADVANCE: true, EXIT_PERMISSION: true },
@@ -222,7 +249,7 @@ export class SettingsPage implements OnInit {
       admin: { ALL: true, LEAVE: true, ADVANCE: true, EXIT_PERMISSION: true },
     },
     annualLeaveDays: 18,
-    leaveAccrual: { perMonth: 0, defaultInitialBalance: 0 },
+    leaveAccrual: { perMonth: 0, defaultInitialBalance: 0, cycleDay: 21, byContract: { CDI: 1.75, CDD: 1.25 } },
     workWeek: { weekendDays: [6,7] },
     leaveRules: { minNoticeDays: 0, maxDaysPerRequest: 60, allowPastDates: false },
     exit: { enforceHours: false, workStart: '08:00', workEnd: '18:00' }
@@ -253,6 +280,8 @@ constructor(private api: SettingsApiService, private holidaysApi: HolidayService
       leaveAccrual: {
         perMonth: typeof la.perMonth === 'number' ? la.perMonth : 0,
         defaultInitialBalance: typeof la.defaultInitialBalance === 'number' ? la.defaultInitialBalance : 0,
+        cycleDay: typeof la.cycleDay === 'number' ? la.cycleDay : 21,
+        byContract: (la.byContract && typeof la.byContract === 'object' && Object.keys(la.byContract).length) ? la.byContract : { CDI: 1.75, CDD: 1.25 },
       },
       workWeek: {
         weekendDays: Array.isArray(workWeek.weekendDays) && workWeek.weekendDays.length ? workWeek.weekendDays.map((x:any)=>+x) : [6,7]
@@ -369,4 +398,65 @@ constructor(private api: SettingsApiService, private holidaysApi: HolidayService
     this.model.workWeek = { weekendDays: arr.length ? arr : [6,7] };
   }
 
+  
+// --- Leave accrual by contract helpers ---
+  private ensureContractMap(): Record<string, number> {
+    if (!this.model.leaveAccrual) {
+      // Fallback defaults (will be overwritten when settings are loaded)
+      this.model.leaveAccrual = { perMonth: 0, defaultInitialBalance: 0 } as any;
+    }
+    const la: any = this.model.leaveAccrual as any;
+    if (!la.byContract) la.byContract = {};
+    return la.byContract as Record<string, number>;
+  }
+
+  contractKeys(): string[] {
+    const map = this.ensureContractMap();
+    const keys = Object.keys(map).sort((a, b) => a.localeCompare(b));
+    // keep edit buffers in sync (avoid input "blocking" while user types)
+    const next: Record<string,string> = {};
+    for (const k of keys) next[k] = this.contractKeyEdits[k] ?? k;
+    this.contractKeyEdits = next;
+    return keys;
+  }
+
+  commitRename(oldKey: string) {
+    const newKeyRaw = this.contractKeyEdits[oldKey] ?? oldKey;
+    this.renameContractKey(oldKey, newKeyRaw);
+    // re-sync buffers after rename
+    this.contractKeys();
+  }
+
+
+  renameContractKey(oldKey: string, newKeyRaw: string) {
+    const map = this.ensureContractMap();
+    const newKey = (newKeyRaw || '').trim();
+    if (!newKey || newKey === oldKey) return;
+    if (Object.prototype.hasOwnProperty.call(map, newKey)) {
+      this.alert.toast({ icon: 'warning', title: 'Déjà existant', text: 'Ce type de contrat existe déjà.' });
+      return;
+    }
+    const val = map[oldKey];
+    delete map[oldKey];
+    map[newKey] = val;
+  }
+
+  removeContract(key: string) {
+    const map = this.ensureContractMap();
+    delete map[key];
+  }
+
+  addContract() {
+    const map = this.ensureContractMap();
+    const base = 'NOUVEAU';
+    let k = base;
+    let i = 2;
+    while (Object.prototype.hasOwnProperty.call(map, k)) {
+      k = `${base}_${i++}`;
+    }
+    const fallback = (this.model.leaveAccrual as any)?.perMonth ?? 0;
+    map[k] = Number(fallback) || 0;
+  }
+
 }
+

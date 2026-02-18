@@ -11,7 +11,14 @@ class AuthContext
 
     public function fromRequest(Request $request): ?ApiKeyUser
     {
-        $key = trim((string) $request->headers->get('X-API-KEY', ''));
+        // Prefer standard Authorization: Bearer <token>
+        $auth = trim((string)$request->headers->get('Authorization',''));
+        $key = '';
+        if (stripos($auth, 'Bearer ') === 0) { $key = trim(substr($auth, 7)); }
+        if ($key === '') {
+            $key = trim((string) $request->headers->get('X-API-KEY', ''));
+        }
+
         if ($key === '') { $key = trim((string)$request->query->get('api_key','')); }
         if ($key === '') return null;
 

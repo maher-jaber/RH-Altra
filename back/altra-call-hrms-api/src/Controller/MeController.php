@@ -16,11 +16,23 @@ class MeController extends ApiBase
         // Return DB user to include fullName/email reliably
         $u = $this->requireDbUser($request, $em);
 
+        // Manager flag is computed from relationships (manager_id / manager2_id), not only ROLE_SUPERIOR.
+        // This fixes the case where an admin is set as manager of employees but doesn't have ROLE_SUPERIOR.
+        $managedCount = (int) $em->createQueryBuilder()
+            ->select('COUNT(u2.id)')
+            ->from(User::class, 'u2')
+            ->where('u2.manager = :me OR u2.manager2 = :me')
+            ->setParameter('me', $u)
+            ->getQuery()
+            ->getSingleScalarResult();
+
         return $this->jsonOk([
             'id' => (string)$u->getId(),
             'fullName' => (string)($u->getFullName() ?? $u->getEmail()),
             'email' => $u->getEmail(),
             'roles' => $u->getRoles(),
+            'managedCount' => $managedCount,
+            'isManager' => $managedCount > 0,
         ]);
     }
 

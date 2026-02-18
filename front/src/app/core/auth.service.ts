@@ -50,7 +50,29 @@ export class AuthService {
     this._me.set(null);
   }
 
+  /**
+   * Role check with backward-compatible aliases.
+   * - Managers may be stored as ROLE_SUPERIOR (legacy) or ROLE_MANAGER (newer UI).
+   */
   hasRole(role: string): boolean {
-    return (this._me()?.roles ?? []).includes(role as any);
+    const roles = (this._me()?.roles ?? []) as any[];
+    if (roles.includes(role as any)) return true;
+    if (role === 'ROLE_MANAGER') return roles.includes('ROLE_SUPERIOR');
+    if (role === 'ROLE_SUPERIOR') return roles.includes('ROLE_MANAGER');
+    return false;
+  }
+
+  /**
+   * Manager access is granted either by role (ROLE_SUPERIOR / admin) OR by relationship
+   * (the user manages at least one employee).
+   */
+  isManager(): boolean {
+    const me = this._me();
+    if (!me) return false;
+    return (me.roles ?? []).includes('ROLE_ADMIN' as any)
+      || (me.roles ?? []).includes('ROLE_SUPERIOR' as any)
+      || (me.roles ?? []).includes('ROLE_MANAGER' as any)
+      || !!me.isManager
+      || ((me.managedCount ?? 0) > 0);
   }
 }

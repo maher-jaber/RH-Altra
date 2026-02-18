@@ -11,7 +11,8 @@ class LeaveStatsController extends ApiBase
     #[Route('/api/stats/leaves', methods:['GET'])]
     public function stats(Request $r, EntityManagerInterface $em): JsonResponse
     {
-        $this->requireRole($r,'ROLE_HR');
+        // RH removed: stats are admin-only.
+        $this->requireRole($r,'ROLE_ADMIN');
 
         $qb = $em->createQueryBuilder();
         $qb->select('t.label as type, COUNT(l.id) as total')

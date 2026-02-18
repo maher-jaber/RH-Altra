@@ -24,24 +24,19 @@ import { MatButtonModule } from '@angular/material/button';
       <mat-tab-group (selectedIndexChange)="onTab($event)">
         <mat-tab label="Résumé">
           <ng-template matTabContent>
-            <ng-container *ngIf="cmp() as C; else loading">
-              <ng-container *ngComponentOutlet="C; inputs: { exitId: exitId() }"></ng-container>
-            </ng-container>
-          </ng-template>
-        </mat-tab>
+            <ng-container *ngIf="overviewCmp() && actionsCmp(); else loading">
+              <ng-container *ngComponentOutlet="overviewCmp(); inputs: { exitId: exitId() }"></ng-container>
 
-        <mat-tab label="Actions">
-          <ng-template matTabContent>
-            <ng-container *ngIf="cmp() as C; else loading">
-              <ng-container *ngComponentOutlet="C; inputs: { exitId: exitId() }"></ng-container>
+              <div style="height:12px"></div>
+              <ng-container *ngComponentOutlet="actionsCmp(); inputs: { exitId: exitId() }"></ng-container>
             </ng-container>
           </ng-template>
         </mat-tab>
 
         <mat-tab label="Audit">
           <ng-template matTabContent>
-            <ng-container *ngIf="cmp() as C; else loading">
-              <ng-container *ngComponentOutlet="C; inputs: { exitId: exitId() }"></ng-container>
+            <ng-container *ngIf="auditCmp(); else loading">
+              <ng-container *ngComponentOutlet="auditCmp(); inputs: { exitId: exitId() }"></ng-container>
             </ng-container>
           </ng-template>
         </mat-tab>
@@ -59,24 +54,28 @@ import { MatButtonModule } from '@angular/material/button';
 })
 export class ExitPermissionDetailPage implements OnInit {
   exitId = signal<number>(0);
-  cmp = signal<any>(null);
+  overviewCmp = signal<any>(null);
+  actionsCmp = signal<any>(null);
+  auditCmp = signal<any>(null);
 
-  private loaders = [
-    () => import('./exit-permission-detail-tabs/exit-overview.tab').then(m => m.ExitOverviewTab),
-    () => import('./exit-permission-detail-tabs/exit-actions.tab').then(m => m.ExitActionsTab),
-    () => import('./exit-permission-detail-tabs/exit-audit.tab').then(m => m.ExitAuditTab),
-  ];
+  private loadOverview = () => import('./exit-permission-detail-tabs/exit-overview.tab').then(m => m.ExitOverviewTab);
+  private loadActions = () => import('./exit-permission-detail-tabs/exit-actions.tab').then(m => m.ExitActionsTab);
+  private loadAudit = () => import('./exit-permission-detail-tabs/exit-audit.tab').then(m => m.ExitAuditTab);
 
   constructor(private route: ActivatedRoute) {}
 
   async ngOnInit() {
     this.exitId.set(Number(this.route.snapshot.paramMap.get('id') || '0'));
-    await this.onTab(0);
+    const [Ov, Act] = await Promise.all([this.loadOverview(), this.loadActions()]);
+    this.overviewCmp.set(Ov);
+    this.actionsCmp.set(Act);
   }
 
   async onTab(i: number) {
-    this.cmp.set(null);
-    const C = await this.loaders[i]();
-    this.cmp.set(C);
+    // tab 1 = Audit
+    if(i === 1 && !this.auditCmp()){
+      const A = await this.loadAudit();
+      this.auditCmp.set(A);
+    }
   }
 }

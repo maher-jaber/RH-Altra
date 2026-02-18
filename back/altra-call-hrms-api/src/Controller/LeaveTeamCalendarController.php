@@ -14,7 +14,7 @@ class LeaveTeamCalendarController extends ApiBase
         $u = $this->requireUser($r);
 
         // manager/hr/admin can view department calendar; employee only own calendar
-        $isPriv = in_array('ROLE_MANAGER',$u->roles,true) || in_array('ROLE_HR',$u->roles,true) || in_array('ROLE_ADMIN',$u->roles,true);
+        $isPriv = in_array('ROLE_MANAGER',$u->roles,true) || in_array('ROLE_SUPERIOR',$u->roles,true) || in_array('ROLE_ADMIN',$u->roles,true);
 
         if (!$isPriv) {
             // Schema note:

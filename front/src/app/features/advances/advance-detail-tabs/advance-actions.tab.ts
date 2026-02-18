@@ -44,7 +44,7 @@ export class AdvanceActionsTab implements OnInit {
   loading = signal(false);
   msg = signal('');
 
-  meId = computed(() => this.auth.me()?.id);
+  meId = computed(() => Number(this.auth.me()?.id));
 
   constructor(private api: AdvanceService, private auth: AuthService) {}
 
@@ -62,8 +62,10 @@ export class AdvanceActionsTab implements OnInit {
     const a = this.item();
     if (!a) return false;
     const isAdmin = this.auth.hasRole('ROLE_ADMIN');
-    const isManager = this.auth.hasRole('ROLE_SUPERIOR') && (a.manager?.id === this.meId());
-    return (isAdmin || isManager) && a.status === 'SUBMITTED';
+    const isManager = (a.manager?.id === this.meId());
+    const isManager2 = (a.manager2?.id === this.meId());
+    const alreadySigned = (!!a.managerSignedAt && isManager) || (!!a.manager2SignedAt && isManager2);
+    return (isAdmin || isManager || isManager2) && a.status === 'SUBMITTED' && !alreadySigned;
   }
 
   async decide(d: 'APPROVE' | 'REJECT') {
