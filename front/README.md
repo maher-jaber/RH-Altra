@@ -1,4 +1,4 @@
-# Altra Call HRMS UI (Angular)
+# Altra-RH UI (Angular)
 
 Starter Angular (standalone) for:
 - Gestion des congés (demande, soumission, suivi)

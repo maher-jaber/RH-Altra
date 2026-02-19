@@ -11,7 +11,7 @@ class LeaveIcsController extends ApiBase
 {
     private function icsHeader(): string
     {
-        return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//ALTRACALL HRMS//LEAVES//FR\r\nCALSCALE:GREGORIAN\r\n";
+        return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//ALTRA-RH//LEAVES//FR\r\nCALSCALE:GREGORIAN\r\n";
     }
 
     private function icsFooter(): string { return "END:VCALENDAR\r\n"; }

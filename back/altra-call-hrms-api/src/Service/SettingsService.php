@@ -23,6 +23,14 @@ class SettingsService
     public const KEY_LEAVE_ALLOW_PAST_DATES = 'leave_allow_past_dates';
 
     // Leave accrual (monthly)
+    // Sick leave policy
+    public const KEY_SICK_LEAVE_POLICY_BY_CONTRACT = 'sick_leave_policy_by_contract';
+    public const KEY_SICK_LEAVE_DEFAULT_POLICY = 'sick_leave_default_policy';
+
+    // Sick leave annual quota (days/year)
+    public const KEY_SICK_LEAVE_ANNUAL_QUOTA_BY_CONTRACT = 'sick_leave_annual_quota_by_contract';
+    public const KEY_SICK_LEAVE_DEFAULT_ANNUAL_QUOTA = 'sick_leave_default_annual_quota';
+
     public const KEY_LEAVE_ACCRUAL_PER_MONTH = 'leave_accrual_per_month';
     public const KEY_LEAVE_DEFAULT_INITIAL_BALANCE = 'leave_default_initial_balance';
     public const KEY_LEAVE_ACCRUAL_CYCLE_DAY = 'leave_accrual_cycle_day';
@@ -194,6 +202,85 @@ class SettingsService
         if ($allow > 3650) $allow = 3650;
         return $allow;
     }
+
+    /** Default sick leave policy. Values: OWN (separate balance) or ANNUAL (deduct from annual leave). */
+    public function sickLeaveDefaultPolicy(): string
+    {
+        $v = strtoupper(trim((string)$this->get(self::KEY_SICK_LEAVE_DEFAULT_POLICY, 'OWN')));
+        return in_array($v, ['OWN','ANNUAL'], true) ? $v : 'OWN';
+    }
+
+    /** Map of contractType => policy (OWN|ANNUAL). */
+    public function sickLeavePolicyByContract(): array
+    {
+        $m = $this->get(self::KEY_SICK_LEAVE_POLICY_BY_CONTRACT, null);
+        if (!is_array($m)) return [];
+        $out = [];
+        foreach ($m as $k => $v) {
+            $key = strtoupper(trim((string)$k));
+            if ($key === '') continue;
+            $p = strtoupper(trim((string)$v));
+            if (!in_array($p, ['OWN','ANNUAL'], true)) $p = $this->sickLeaveDefaultPolicy();
+            $out[$key] = $p;
+        }
+        return $out;
+    }
+
+    /** Resolve sick leave policy for a given contract type (falls back to default). */
+    public function sickLeavePolicyForContract(?string $contractType): string
+    {
+        $def = $this->sickLeaveDefaultPolicy();
+        if (!$contractType) return $def;
+        $map = $this->sickLeavePolicyByContract();
+        $key = strtoupper(trim((string)$contractType));
+        if ($key !== '' && array_key_exists($key, $map)) return (string)$map[$key];
+        return $def;
+    }
+
+    /** Convenience: is sick leave deducted from annual balance for user? */
+    public function sickLeaveCountsAsAnnual(User $u): bool
+    {
+        $ct = method_exists($u, 'getContractType') ? $u->getContractType() : null;
+        return $this->sickLeavePolicyForContract($ct) === 'ANNUAL';
+    }
+
+    /** Default sick annual quota (days/year) used when policy=OWN and contract isn't mapped. */
+    public function sickLeaveDefaultAnnualQuota(): float
+    {
+        $v = (float)$this->get(self::KEY_SICK_LEAVE_DEFAULT_ANNUAL_QUOTA, 0.0);
+        if ($v < 0) $v = 0;
+        if ($v > 365) $v = 365;
+        return $v;
+    }
+
+    /** Map of contractType => annual quota (days/year). */
+    public function sickLeaveAnnualQuotaByContract(): array
+    {
+        $m = $this->get(self::KEY_SICK_LEAVE_ANNUAL_QUOTA_BY_CONTRACT, null);
+        if (!is_array($m)) return [];
+        $out = [];
+        foreach ($m as $k => $v) {
+            $key = strtoupper(trim((string)$k));
+            if ($key === '') continue;
+            $f = (float)$v;
+            if ($f < 0) $f = 0;
+            if ($f > 365) $f = 365;
+            $out[$key] = $f;
+        }
+        return $out;
+    }
+
+    /** Resolve sick annual quota for a contract type (falls back to default). */
+    public function sickLeaveAnnualQuotaForContract(?string $contractType): float
+    {
+        $def = $this->sickLeaveDefaultAnnualQuota();
+        if (!$contractType) return $def;
+        $map = $this->sickLeaveAnnualQuotaByContract();
+        $key = strtoupper(trim((string)$contractType));
+        if ($key !== '' && array_key_exists($key, $map)) return (float)$map[$key];
+        return $def;
+    }
+
     public function roleBucket(User $u): string
     {
         $roles = $u->getRoles();

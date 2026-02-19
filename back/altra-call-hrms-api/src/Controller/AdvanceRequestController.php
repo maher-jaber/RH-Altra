@@ -189,7 +189,8 @@ class AdvanceRequestController extends ApiBase
                 $n->setTitle('Avance · Nouvelle demande (' . $periodLabel . ')');
                 $n->setActionUrl('/advances/detail/' . $a->getId());
                 $n->setPayload($this->serialize($a));
-                $n->setBody('Période: ' . $periodLabel . ' · Montant: ' . $a->getAmount() . ' ' . $a->getCurrency() . ' · Statut: ' . $a->getStatus());
+                $st = $this->mailer->presentStatus('ADVANCE', $a->getStatus());
+                $n->setBody('Période: ' . $periodLabel . ' · Montant: ' . $a->getAmount() . ' ' . $a->getCurrency() . ' · Statut: ' . $st['label']);
                 $n->setType('ADVANCE');
                 $this->em->persist($n);
                 $this->em->flush();
@@ -210,17 +211,19 @@ class AdvanceRequestController extends ApiBase
                     $url = rtrim($base,'/') . '/advances/detail/' . $a->getId();
                     $emp = $a->getUser();
                     $empName = $emp ? ($emp->getFullName() ?: $emp->getEmail()) : '—';
-                    $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
-                        . '<h2 style="margin:0 0 12px 0">Nouvelle demande d\'avance</h2>'
-                        . '<table style="border-collapse:collapse;width:100%;max-width:680px">'
-                        . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa;width:180px"><b>Employé</b></td><td style="padding:8px 10px;border:1px solid #eee">'.htmlspecialchars($empName,ENT_QUOTES).'</td></tr>'
-                        . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Période</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$periodLabel.'</td></tr>'
-                        . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Montant</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getAmount().' '.$a->getCurrency().'</td></tr>'
-                        . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Statut</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getStatus().'</td></tr>'
-                        . '</table>'
-                        . '<p style="margin:20px 0"><a href="'.htmlspecialchars($url,ENT_QUOTES).'" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Ouvrir la demande</a></p>'
-                        . '<p style="opacity:.7;font-size:12px;margin-top:18px">ALTRA HRMS · Notification automatique</p>'
-                        . '</div>';
+                    $st = $this->mailer->presentStatus('ADVANCE', $a->getStatus());
+                    $html = $this->mailer->renderEmail(
+                        title: "Nouvelle demande d'avance",
+                        intro: 'Une nouvelle demande est en attente de votre validation.',
+                        rows: [
+                            ['Employé', $empName],
+                            ['Période', $periodLabel],
+                            ['Montant', $a->getAmount().' '.$a->getCurrency()],
+                            ['Statut', ['html' => $this->mailer->renderInlineBadges($st['badges']).'<div style="margin-top:6px;color:#374151;font-size:13px;">'.htmlspecialchars($st['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</div>']],
+                        ],
+                        ctaUrl: $url,
+                        ctaLabel: 'Ouvrir la demande'
+                    );
                     if ($this->settings->canSendEmail($mgr, 'ADVANCE')) { $this->mailer->notify($mgr->getEmail(), 'Nouvelle demande d\'avance', $html); }
                 } catch (\Throwable) { /* best-effort */ }
             }
@@ -437,17 +440,19 @@ class AdvanceRequestController extends ApiBase
                 $url = rtrim($base,'/') . '/advances/detail/' . $a->getId();
                 $emp = $a->getUser();
                 $empName = $emp ? ($emp->getFullName() ?: $emp->getEmail()) : '—';
-                $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
-                    . '<h2 style="margin:0 0 12px 0">Décision sur votre avance</h2>'
-                    . '<table style="border-collapse:collapse;width:100%;max-width:680px">'
-                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa;width:180px"><b>Employé</b></td><td style="padding:8px 10px;border:1px solid #eee">'.htmlspecialchars($empName,ENT_QUOTES).'</td></tr>'
-                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Période</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$periodLabel.'</td></tr>'
-                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Montant</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getAmount().' '.$a->getCurrency().'</td></tr>'
-                    . '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa"><b>Statut</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$a->getStatus().'</td></tr>'
-                    . '</table>'
-                    . '<p style="margin:20px 0"><a href="'.htmlspecialchars($url,ENT_QUOTES).'" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Ouvrir la demande</a></p>'
-                    . '<p style="opacity:.7;font-size:12px;margin-top:18px">ALTRA HRMS · Notification automatique</p>'
-                    . '</div>';
+                $st = $this->mailer->presentStatus('ADVANCE', $a->getStatus());
+                $html = $this->mailer->renderEmail(
+                    title: 'Décision sur votre avance',
+                    intro: $a->getStatus() === AdvanceRequest::STATUS_APPROVED ? "Votre demande d'avance a été approuvée." : "Votre demande d'avance a été refusée.",
+                    rows: [
+                        ['Employé', $empName],
+                        ['Période', $periodLabel],
+                        ['Montant', $a->getAmount().' '.$a->getCurrency()],
+                        ['Statut', ['html' => $this->mailer->renderInlineBadges($st['badges']).'<div style="margin-top:6px;color:#374151;font-size:13px;">'.htmlspecialchars($st['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</div>']],
+                    ],
+                    ctaUrl: $url,
+                    ctaLabel: 'Ouvrir la demande'
+                );
                 if($this->settings->canSendEmail($emp,'ADVANCE')) { $this->mailer->notify($emp->getEmail(), 'Décision sur votre avance', $html); }
             } catch (\Throwable) { /* best-effort */ }
         }

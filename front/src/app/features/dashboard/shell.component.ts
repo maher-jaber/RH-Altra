@@ -94,9 +94,17 @@ import { NotificationItem } from '../../core/models';
       border-radius: 16px;
       display:grid;
       place-items:center;
-      color: rgba(255,255,255,0.92);
-      background: linear-gradient(135deg, rgba(37,99,235,.85), rgba(124,58,237,.75));
-      box-shadow: 0 14px 35px rgba(0,0,0,.22);
+      background: #fff;
+      border: 1px solid var(--stroke);
+      box-shadow: 0 10px 24px rgba(15,23,42,.10);
+      overflow: hidden;
+    }
+
+    .logo img {
+      width: 30px;
+      height: 30px;
+      object-fit: contain;
+      display:block;
     }
 
     .section-title {
@@ -252,9 +260,9 @@ import { NotificationItem } from '../../core/models';
     <mat-sidenav mode="side" opened class="sidenav">
       <div class="sidenav-inner">
         <div class="brandbar">
-          <div class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 21V3h12v4h6v14H3zm2-2h4v-2H5v2zm0-4h4v-2H5v2zm0-4h4V9H5v2zm0-4h4V5H5v2zm6 12h4v-2h-4v2zm0-4h4v-2h-4v2zm0-4h4V9h-4v2zm6 12h2V9h-2v10z"/></svg></div>
+          <div class="logo"><img src="assets/altracall-logo.png" alt="Altra-RH" /></div>
           <div class="brand-text">
-            <div class="brand">ALTRACALL HRMS</div>
+            <div class="brand">Altra-RH</div>
             <div class="brand-sub">Portail RH interne</div>
           </div>
         </div>
@@ -317,7 +325,7 @@ import { NotificationItem } from '../../core/models';
       <div class="topbar">
         <mat-toolbar class="toolbar" color="transparent">
           <div class="title">
-            <span class="crumb">ALTRACALL</span>
+            <span class="crumb">Altra-RH</span>
             <span class="sep">/</span>
             <span>{{pageTitle()}}</span>
           </div>

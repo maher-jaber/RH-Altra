@@ -79,24 +79,13 @@ class RequestNotifierService
 
     public function simpleEmailHtml(string $title, array $rows, ?string $ctaPath = null, string $ctaLabel = 'Ouvrir'): string
     {
-        $h = fn(?string $s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $table = '<table style="border-collapse:collapse;width:100%;max-width:680px">';
-        foreach ($rows as [$k,$v]) {
-            $table .= '<tr><td style="padding:8px 10px;border:1px solid #eee;background:#fafafa;width:180px"><b>'.$h($k).'</b></td><td style="padding:8px 10px;border:1px solid #eee">'.$h($v).'</td></tr>';
-        }
-        $table .= '</table>';
-
-        $btn = '';
-        if ($ctaPath) {
-            $url = rtrim($this->frontendUrl, '/') . $ctaPath;
-            $btn = '<p style="margin:20px 0"><a href="'.$h($url).'" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">'.$h($ctaLabel).'</a></p>';
-        }
-
-        return '<div style="font-family:Arial,sans-serif;line-height:1.4">'
-            . '<h2 style="margin:0 0 12px 0">'.$h($title).'</h2>'
-            . $table
-            . $btn
-            . '<p style="opacity:.7;font-size:12px;margin-top:18px">ALTRA HRMS · Notification automatique</p>'
-            . '</div>';
+        $ctaUrl = $ctaPath ? (rtrim($this->frontendUrl, '/') . $ctaPath) : null;
+        return $this->mailer->renderEmail(
+            title: $title,
+            intro: 'Détails de la demande :',
+            rows: $rows,
+            ctaUrl: $ctaUrl,
+            ctaLabel: $ctaLabel
+        );
     }
 }

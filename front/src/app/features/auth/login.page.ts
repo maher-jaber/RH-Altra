@@ -36,9 +36,9 @@ import { AuthService } from '../../core/auth.service';
     <div class="card">
       <div class="card-body">
         <div class="brand">
-          <img src="assets/altracall-logo.png" alt="ALTRACALL">
+          <img src="assets/altracall-logo.png" alt="Altra-RH">
           <div>
-            <h1>ALTRACALL HR</h1>
+            <h1>Altra-RH</h1>
             <p class="sub">Connexion à l’espace RH</p>
           </div>
         </div>

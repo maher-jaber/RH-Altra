@@ -179,11 +179,20 @@ class ExitPermissionController extends ApiBase
                 payload: $n->getPayload()
             ));
 
-            $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
-              . '<h2>Nouvelle autorisation de sortie</h2>'
-              . '<p>Employé: <b>' . htmlspecialchars($employee->getFullName(), ENT_QUOTES) . '</b></p>'
-              . '<p>Date: <b>' . htmlspecialchars((string)$e->getStartAt()?->format('Y-m-d'), ENT_QUOTES) . '</b><br/>De: <b>' . htmlspecialchars((string)$e->getStartAt()?->format('H:i'), ENT_QUOTES) . '</b> à <b>' . htmlspecialchars((string)$e->getEndAt()?->format('H:i'), ENT_QUOTES) . '</b></p>'
-              . '</div>';
+            $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+            $url = rtrim($base, '/') . '/exit-permissions/detail/' . $e->getId();
+
+            $html = $this->mailer->renderEmail(
+                title: 'Nouvelle autorisation de sortie',
+                intro: 'Une nouvelle demande est en attente de votre validation.',
+                rows: [
+                    ['Employé', $employee->getFullName() ?: $employee->getEmail()],
+                    ['Date', (string)$e->getStartAt()?->format('Y-m-d')],
+                    ['Heure', (string)$e->getStartAt()?->format('H:i') . ' → ' . (string)$e->getEndAt()?->format('H:i')],
+                ],
+                ctaUrl: $url,
+                ctaLabel: 'Ouvrir la demande'
+            );
             if ($this->settings->canSendEmail($to, 'EXIT')) { $this->mailer->notify($to->getEmail(), 'Nouvelle autorisation de sortie', $html); }
         }
 
@@ -332,12 +341,8 @@ class ExitPermissionController extends ApiBase
 
         
         // Notifications (user + managers + RH) + emails (best-effort)
-        $statusFr = match($e->getStatus()) {
-            ExitPermission::STATUS_APPROVED => 'Approuvée',
-            ExitPermission::STATUS_REJECTED => 'Refusée',
-            ExitPermission::STATUS_MANAGER_APPROVED => 'Approuvée (en attente signature)',
-            default => $e->getStatus(),
-        };
+        $st = $this->mailer->presentStatus('EXIT', $e->getStatus());
+        $statusFr = $st['label'];
 
         $recipients = [];
         // employee
@@ -369,12 +374,25 @@ class ExitPermissionController extends ApiBase
                 payload: $n->getPayload()
             ));
 
-            $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
-              . '<h2>Autorisation de sortie - ' . htmlspecialchars($statusFr, ENT_QUOTES) . '</h2>'
-              . '<p>Employé: <b>' . htmlspecialchars($e->getUser()?->getFullName() ?: '', ENT_QUOTES) . '</b></p>'
-              . '<p>Date: <b>' . htmlspecialchars((string)$e->getStartAt()?->format('Y-m-d'), ENT_QUOTES) . '</b><br/>De: <b>' . htmlspecialchars((string)$e->getStartAt()?->format('H:i'), ENT_QUOTES) . '</b> à <b>' . htmlspecialchars((string)$e->getEndAt()?->format('H:i'), ENT_QUOTES) . '</b></p>'
-              . ($comment ? '<p>Commentaire: ' . htmlspecialchars($comment, ENT_QUOTES) . '</p>' : '')
-              . '</div>';
+            $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+            $url = rtrim($base, '/') . '/exit-permissions/detail/' . $e->getId();
+
+            $employee = $e->getUser();
+            $empName = $employee ? ($employee->getFullName() ?: $employee->getEmail()) : '—';
+
+            $html = $this->mailer->renderEmail(
+                title: 'Autorisation de sortie - ' . $statusFr,
+                intro: 'Le statut de la demande a été mis à jour.',
+                rows: [
+                    ['Employé', $empName],
+                    ['Date', (string)$e->getStartAt()?->format('Y-m-d')],
+                    ['Heure', (string)$e->getStartAt()?->format('H:i') . ' → ' . (string)$e->getEndAt()?->format('H:i')],
+                    ['Statut', ['html' => $this->mailer->renderInlineBadges($st['badges']).'<div style="margin-top:6px;color:#374151;font-size:13px;">'.htmlspecialchars($statusFr, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</div>']],
+                ],
+                ctaUrl: $url,
+                ctaLabel: 'Ouvrir la demande',
+                finePrint: $comment ? ('Commentaire: ' . $comment) : null
+            );
             if ($this->settings->canSendEmail($to, 'EXIT')) { $this->mailer->notify($to->getEmail(), 'Autorisation de sortie - ' . $statusFr, $html); }
         }
 

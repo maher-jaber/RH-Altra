@@ -33,7 +33,7 @@ import { environment } from '../../../environments/environment';
     <div class="card">
       <div class="card-body">
         <div class="brand">
-          <img src="assets/altracall-logo.png" alt="ALTRACALL">
+          <img src="assets/altracall-logo.png" alt="Altra-RH">
           <div>
             <h2 style="margin:0">Réinitialiser le mot de passe</h2>
             <p style="margin:0;color:var(--text-2)">Entrez le token et le nouveau mot de passe.</p>

@@ -4,6 +4,7 @@ services:
     autoconfigure: true
     bind:
       string $mailerDsn: '%env(MAILER_DSN)%'
+      string $projectDir: '%kernel.project_dir%'
 
   App\:
     resource: '../src/'

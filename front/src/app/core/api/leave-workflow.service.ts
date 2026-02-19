@@ -71,6 +71,11 @@ export class LeaveWorkflowService {
   statsLeaves() { return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/stats/leaves`)); }
   teamCalendar() { return firstValueFrom(this.http.get<any>(`${environment.apiBaseUrl}/api/leaves/team-calendar`)); }
 
+  // Certificate download
+  downloadCertificate(id: string) {
+    return this.http.get(`${environment.apiBaseUrl}/api/leaves/${id}/certificate/download`, { responseType: 'blob' as const });
+  }
+
   // PDF
   downloadPdf(id: string) {
     return this.http.get(`${environment.apiBaseUrl}/api/leaves/${id}/pdf`, { responseType: 'blob' as const });

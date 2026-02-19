@@ -10,6 +10,8 @@ use App\Service\WorkingDaysService;
 use App\Service\SettingsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -152,10 +154,29 @@ class LeaveRequestCrudController extends ApiBase
             ], 409);
         }
 
-        if ($type->getAnnualAllowance() > 0) {
+        // Balance check
+        $countsSickAsAnnual = $settings->sickLeaveCountsAsAnnual($u);
+
+        // Decide which "bucket" this request consumes.
+        // - Normal: consumes its own type allowance.
+        // - Sick (policy=ANNUAL): consumes annual allowance (including prior sick).
+        $consumedType = $type;
+        if ($type->getCode() === 'SICK' && $countsSickAsAnnual) {
+            $annual = $em->getRepository(LeaveType::class)->findOneBy(['code' => 'ANNUAL']);
+            if ($annual) $consumedType = $annual;
+        }
+
+        $isSickOwn = ($type->getCode() === 'SICK' && !$countsSickAsAnnual);
+
+        // Only enforce balance when allowance is positive.
+        // Note: UNPAID and other unlimited types use allowance=0 and are not checked.
+        // Exception: Sick with OWN policy uses quota from settings (even if LeaveType allowance=0).
+        if ($consumedType->getAnnualAllowance() > 0 || $consumedType->getCode() === 'ANNUAL' || $isSickOwn) {
             $year = (int)$start->format('Y');
             $from = new \DateTimeImmutable($year.'-01-01');
             $to = new \DateTimeImmutable($year.'-12-31');
+
+            // Used days for the consumed bucket (annual may include sick if policy=ANNUAL).
             $qb2 = $em->createQueryBuilder();
             $qb2->select('COALESCE(SUM(l2.daysCount),0)')
                 ->from(LeaveRequest::class,'l2')
@@ -163,18 +184,51 @@ class LeaveRequestCrudController extends ApiBase
                 ->andWhere('l2.type = :t')
                 ->andWhere('l2.status IN (:sts)')
                 ->andWhere('l2.startDate >= :from AND l2.endDate <= :to')
-                ->setParameters(['u'=>$u,'t'=>$type,'sts'=>[LeaveRequest::STATUS_SUBMITTED, LeaveRequest::STATUS_MANAGER_APPROVED, LeaveRequest::STATUS_HR_APPROVED],'from'=>$from,'to'=>$to]);
+                ->setParameters([
+                    'u'=>$u,
+                    't'=>$consumedType,
+                    'sts'=>[LeaveRequest::STATUS_SUBMITTED, LeaveRequest::STATUS_MANAGER_APPROVED, LeaveRequest::STATUS_HR_APPROVED],
+                    'from'=>$from,
+                    'to'=>$to
+                ]);
             $used = (float)$qb2->getQuery()->getSingleScalarResult();
-            $allowance = $type->getAnnualAllowance();
-            if ($type->getCode() === 'ANNUAL') {
+
+            // If we are consuming ANNUAL and sick counts as annual, include prior SICK usage too.
+            if ($consumedType->getCode() === 'ANNUAL' && $countsSickAsAnnual) {
+                $sick = $em->getRepository(LeaveType::class)->findOneBy(['code' => 'SICK']);
+                if ($sick) {
+                    $qbS = $em->createQueryBuilder();
+                    $qbS->select('COALESCE(SUM(ls.daysCount),0)')
+                        ->from(LeaveRequest::class,'ls')
+                        ->where('ls.user = :u')
+                        ->andWhere('ls.type = :t')
+                        ->andWhere('ls.status IN (:sts)')
+                        ->andWhere('ls.startDate >= :from AND ls.endDate <= :to')
+                        ->setParameters([
+                            'u'=>$u,'t'=>$sick,
+                            'sts'=>[LeaveRequest::STATUS_SUBMITTED, LeaveRequest::STATUS_MANAGER_APPROVED, LeaveRequest::STATUS_HR_APPROVED],
+                            'from'=>$from,'to'=>$to
+                        ]);
+                    $used += (float)$qbS->getQuery()->getSingleScalarResult();
+                }
+            }
+
+            $allowance = (float)$consumedType->getAnnualAllowance();
+            if ($consumedType->getCode() === 'ANNUAL') {
                 $allowance = $settings->accruedAnnualAllowanceForUser($u, $year, new \DateTimeImmutable('today'));
             }
+            if ($isSickOwn) {
+                $ct = method_exists($u,'getContractType') ? $u->getContractType() : null;
+                $allowance = (float)$settings->sickLeaveAnnualQuotaForContract($ct);
+            }
+
             if ($used + $days > $allowance) {
                 return $this->json([
                     'error' => 'insufficient_balance',
                     'usedDays' => $used,
                     'requestedDays' => $days,
-                    'allowance' => $allowance
+                    'allowance' => $allowance,
+                    'consumedType' => $consumedType->getCode(),
                 ], 409);
             }
         }
@@ -328,6 +382,55 @@ class LeaveRequestCrudController extends ApiBase
         $em->flush();
 
         return $this->jsonOk(['leave' => $this->serialize($lr)]);
+    }
+
+
+    #[Route('/api/leaves/{id}/certificate/download', methods:['GET'])]
+    public function downloadCertificate(string $id, Request $r, EntityManagerInterface $em): JsonResponse|BinaryFileResponse
+    {
+        $token = $this->requireUser($r);
+        $me = $this->requireDbUser($r, $em);
+
+        /** @var LeaveRequest|null $lr */
+        $lr = $em->getRepository(LeaveRequest::class)->find($id);
+        if (!$lr) return $this->json(['error' => 'not_found'], 404);
+
+        $isAdmin = in_array('ROLE_ADMIN', $token->roles ?? [], true);
+        $isOwner = $lr->getUser()?->getId() === $me->getId();
+        $isManager = $lr->getManager()?->getId() === $me->getId();
+        $isManager2 = method_exists($lr,'getManager2') ? $lr->getManager2()?->getId() === $me->getId() : false;
+
+        if (!$isAdmin && !$isOwner && !$isManager && !$isManager2) {
+            return $this->json(['error' => 'forbidden'], 403);
+        }
+
+        $rel = (string)($lr->getCertificatePath() ?: '');
+        if ($rel === '') return $this->json(['error' => 'no_certificate'], 404);
+
+        $base = $this->getParameter('kernel.project_dir');
+        $abs = rtrim((string)$base, '/').'/'.ltrim($rel, '/');
+        if (!is_file($abs)) return $this->json(['error' => 'file_missing'], 404);
+
+        $resp = new BinaryFileResponse($abs);
+
+        // Avoid Symfony Mime component dependency: set Content-Type manually (fallback octet-stream)
+        $mime = 'application/octet-stream';
+        if (function_exists('mime_content_type')) {
+            $m = @mime_content_type($abs);
+            if (is_string($m) && $m !== '') { $mime = $m; }
+        } elseif (function_exists('finfo_open')) {
+            $fi = @finfo_open(FILEINFO_MIME_TYPE);
+            if ($fi) {
+                $m = @finfo_file($fi, $abs);
+                @finfo_close($fi);
+                if (is_string($m) && $m !== '') { $mime = $m; }
+            }
+        }
+        $resp->headers->set('Content-Type', $mime);
+
+        $name = basename($abs);
+        $resp->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $name);
+        return $resp;
     }
 
     private function serialize(LeaveRequest $lr): array

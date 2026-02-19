@@ -1,4 +1,4 @@
-# Altra Call HRMS API (Symfony 6.4)
+# Altra-RH API (Symfony 6.4)
 
 Backend API (MVP) aligné avec le front Angular:
 - Auth MVP via header `X-API-KEY`

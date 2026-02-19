@@ -169,20 +169,19 @@ class AdminUserController extends ApiBase
 
         // Send welcome email with credentials (best-effort)
         $loginUrl = rtrim((string)($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? ''), '/') . '/login';
-        $subject = 'Votre compte AltraCall HRMS';
+        $subject = 'Votre compte Altra-RH';
         $pwdPlain = (string)$data['password'];
-        $html = '<div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto">'
-            . '<h2 style="margin:0 0 10px">Bienvenue sur AltraCall HRMS</h2>'
-            . '<p>Bonjour <strong>'.htmlspecialchars($u->getFullName() ?: $u->getEmail(), ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8').'</strong>,</p>'
-            . '<p>Votre compte a été créé. Voici vos informations de connexion :</p>'
-            . '<ul>'
-            . '<li><strong>Email :</strong> '.htmlspecialchars($u->getEmail(), ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8').'</li>'
-            . '<li><strong>Mot de passe :</strong> '.htmlspecialchars($pwdPlain, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8').'</li>'
-            . '</ul>'
-            . '<p style="margin:14px 0">Nous vous recommandons de changer votre mot de passe après votre première connexion.</p>'
-            . (strpos($loginUrl, 'http')===0 ? '<p><a href="'.htmlspecialchars($loginUrl, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8').'" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Se connecter</a></p>' : '')
-            . '<p style="color:#6c757d;font-size:12px;margin-top:24px">Cet email a été envoyé automatiquement — merci de ne pas répondre.</p>'
-            . '</div>';
+        $html = $notifier->renderEmail(
+            title: 'Bienvenue sur Altra-RH',
+            intro: 'Bonjour ' . ($u->getFullName() ?: $u->getEmail()) . ', votre compte a été créé. Voici vos informations de connexion :',
+            rows: [
+                ['Email', (string)$u->getEmail()],
+                ['Mot de passe', $pwdPlain],
+            ],
+            ctaUrl: (strpos($loginUrl, 'http') === 0) ? $loginUrl : null,
+            ctaLabel: 'Se connecter',
+            finePrint: 'Nous vous recommandons de changer votre mot de passe après votre première connexion.'
+        );
         $notifier->notify($u->getEmail(), $subject, $html);
 
 

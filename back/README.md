@@ -1,4 +1,4 @@
-# Altra Call HRMS – Backend Symfony (ZIP)
+# Altra-RH – Backend Symfony (ZIP)
 
 Ce ZIP contient:
 - `altra-call-hrms-api/` : backend Symfony 6.4 (API)

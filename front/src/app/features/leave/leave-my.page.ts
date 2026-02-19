@@ -4,14 +4,14 @@ import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { LeaveService } from '../../core/api/leave.service';
 import { LeaveRequest } from '../../core/models';
+import { AlertService } from '../../core/ui/alert.service';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatTableModule, MatButtonModule, MatSnackBarModule],
+  imports: [CommonModule, MatCardModule, MatTableModule, MatButtonModule],
   template: `
   <div class="container">
     <mat-card>
@@ -34,7 +34,9 @@ import { LeaveRequest } from '../../core/models';
 
           <ng-container matColumnDef="status">
             <th mat-header-cell *matHeaderCellDef>Statut</th>
-            <td mat-cell *matCellDef="let r">{{r.status}}</td>
+            <td mat-cell *matCellDef="let r">
+              <span class="badge" [ngClass]="statusBadgeClass(r.status)">{{ statusLabel(r.status) }}</span>
+            </td>
           </ng-container>
 
           <ng-container matColumnDef="actions">
@@ -62,21 +64,48 @@ export class LeaveMyPageComponent {
   cols = ['type', 'period', 'status', 'actions'];
   rows: LeaveRequest[] = [];
 
-  constructor(private leave: LeaveService, private snack: MatSnackBar) {
+  constructor(private leave: LeaveService, private alert: AlertService) {
     this.reload();
   }
 
   reload() {
     this.leave.my().subscribe({
       next: (list) => this.rows = list,
-      error: () => this.snack.open('Erreur chargement', 'OK', { duration: 3500 })
+      error: () => this.alert.toast({ icon: 'error', title: 'Erreur', text: 'Impossible de charger vos demandes', ms: 3500 })
     });
   }
 
   cancel(r: LeaveRequest) {
     this.leave.cancel(r.id).subscribe({
-      next: () => { this.snack.open('Annulée', 'OK', { duration: 2500 }); this.reload(); },
-      error: () => this.snack.open('Erreur annulation', 'OK', { duration: 3500 })
+      next: () => { this.alert.toast({ icon: 'success', title: 'Demande annulée', ms: 2500 }); this.reload(); },
+      error: () => this.alert.toast({ icon: 'error', title: 'Erreur', text: 'Impossible d\'annuler la demande', ms: 3500 })
     });
+  }
+
+  statusLabel(s?: string | null): string {
+    if (!s) return '—';
+    switch (s) {
+      case 'DRAFT': return 'Brouillon';
+      case 'SUBMITTED': return 'En attente manager';
+      case 'MANAGER_APPROVED': return 'Pré-validée (manager)';
+      case 'HR_APPROVED':
+      case 'RH_APPROVED':
+      case 'APPROVED':
+        return 'Validée (finale)';
+      case 'REJECTED': return 'Refusée';
+      case 'CANCELLED': return 'Annulée';
+      default: return s;
+    }
+  }
+
+  statusBadgeClass(s?: string | null): string {
+    const v = (s || '').toUpperCase();
+    if (v === 'SUBMITTED') return 'text-bg-warning';
+    if (v === 'MANAGER_APPROVED') return 'text-bg-info';
+    if (v === 'HR_APPROVED' || v === 'RH_APPROVED' || v === 'APPROVED') return 'text-bg-success';
+    if (v === 'REJECTED') return 'text-bg-danger';
+    if (v === 'CANCELLED') return 'text-bg-secondary';
+    if (v === 'DRAFT') return 'text-bg-light text-dark';
+    return 'text-bg-secondary';
   }
 }

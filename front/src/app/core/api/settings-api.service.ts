@@ -7,6 +7,12 @@ export interface AppSettings {
   mailNotifications: any;
   annualLeaveDays: number;
   leaveAccrual?: { perMonth: number; defaultInitialBalance: number; cycleDay?: number; byContract?: Record<string, number>; };
+  sickLeave?: {
+    defaultPolicy: 'OWN'|'ANNUAL';
+    byContract?: Record<string, 'OWN'|'ANNUAL'>;
+    defaultAnnualQuotaDays?: number;
+    annualQuotaByContract?: Record<string, number>;
+  };
   workWeek?: { weekendDays: number[]; };
   leaveRules?: { minNoticeDays: number; maxDaysPerRequest: number; allowPastDates: boolean; };
   exit: { enforceHours: boolean; workStart: string; workEnd: string; };

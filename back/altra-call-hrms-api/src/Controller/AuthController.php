@@ -80,13 +80,14 @@ class AuthController extends ApiBase
                 $frontend = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
                 $link = rtrim($frontend, '/') . '/reset-password?token=' . urlencode($token);
                 $name = $user->getFullName() ?: $user->getEmail();
-                $html = '<div style="font-family:Arial,sans-serif;line-height:1.4">'
-                    . '<h2 style="margin:0 0 12px 0">Réinitialisation du mot de passe</h2>'
-                    . '<p style="margin:0 0 12px 0">Bonjour ' . htmlspecialchars((string)$name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ',</p>'
-                    . '<p style="margin:0 0 12px 0">Cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe. Le lien expire dans 1 heure.</p>'
-                    . '<p style="margin:20px 0"><a href="' . htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" style="display:inline-block;background:#0d6efd;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Réinitialiser mon mot de passe</a></p>'
-                    . '<p style="opacity:.7;font-size:12px;margin-top:18px">Si vous n\'êtes pas à l\'origine de cette demande, vous pouvez ignorer cet email.</p>'
-                    . '</div>';
+                $html = $this->mailer->renderEmail(
+                    title: 'Réinitialisation du mot de passe',
+                    intro: 'Bonjour ' . $name . ', cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe. Le lien expire dans 1 heure.',
+                    rows: [],
+                    ctaUrl: $link,
+                    ctaLabel: 'Réinitialiser mon mot de passe',
+                    finePrint: "Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email."
+                );
 
                 $this->mailer->notify((string) $user->getEmail(), 'Réinitialisation du mot de passe', $html);
             }

@@ -15,7 +15,10 @@ import { ExitPermissionService } from '../../../core/api/exit-permission.service
         <div>
           <div class="text-muted"><b>Du:</b> {{item()?.startAt | date:'short'}}</div>
           <div class="text-muted"><b>Au:</b> {{item()?.endAt | date:'short'}}</div>
-          <div class="text-muted">Statut: <b>{{item()?.status}}</b></div>
+          <div class="text-muted">
+            Statut:
+            <span class="badge" [ngClass]="statusBadgeClass(item()?.status)">{{ statusLabel(item()?.status) }}</span>
+          </div>
           <div class="text-muted" *ngIf="item()?.reason">Motif: {{item()?.reason}}</div>
         </div>
         <span class="badge bg-light text-dark" style="border:1px solid #eee">EXIT</span>
@@ -49,5 +52,29 @@ export class ExitOverviewTab implements OnInit {
   async ngOnInit() {
     const e = await firstValueFrom(this.api.getOne(this.exitId));
     this.item.set(e);
+  }
+
+  statusLabel(s?: string | null): string {
+    if (!s) return '—';
+    switch (s) {
+      case 'DRAFT': return 'Brouillon';
+      case 'SUBMITTED': return 'En attente manager';
+      case 'MANAGER_APPROVED': return 'Pré-validée (manager)';
+      case 'APPROVED': return 'Validée (finale)';
+      case 'REJECTED': return 'Refusée';
+      case 'CANCELLED': return 'Annulée';
+      default: return s;
+    }
+  }
+
+  statusBadgeClass(s?: string | null): string {
+    const v = (s || '').toUpperCase();
+    if (v === 'SUBMITTED') return 'text-bg-warning';
+    if (v === 'MANAGER_APPROVED') return 'text-bg-info';
+    if (v === 'APPROVED') return 'text-bg-success';
+    if (v === 'REJECTED') return 'text-bg-danger';
+    if (v === 'CANCELLED') return 'text-bg-secondary';
+    if (v === 'DRAFT') return 'text-bg-light text-dark';
+    return 'text-bg-secondary';
   }
 }

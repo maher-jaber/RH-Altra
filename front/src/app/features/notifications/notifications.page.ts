@@ -49,7 +49,12 @@ import { NotificationStoreService } from '../../core/api/notification-store.serv
               <b>Congé:</b> {{n.payload?.type?.label || n.payload?.type?.code}} · {{n.payload?.startDate}} → {{n.payload?.endDate}} · {{n.payload?.daysCount}} jour(s)
             </div>
             <div *ngIf="n.type==='ADVANCE'">
-              <b>Avance:</b> {{n.payload?.amount}} {{n.payload?.currency}} · Statut: {{n.payload?.status}}
+              <b>Avance:</b> {{n.payload?.amount}} {{n.payload?.currency}} ·
+              <span class="badge" [ngClass]="statusBadgeClass(n.payload?.status)">{{ statusLabel(n.payload?.status) }}</span>
+            </div>
+            <div *ngIf="n.type==='EXIT'">
+              <b>Autorisation de sortie:</b> {{n.payload?.startAt || n.payload?.startDate}} → {{n.payload?.endAt || n.payload?.endDate}} ·
+              <span class="badge" [ngClass]="statusBadgeClass(n.payload?.status)">{{ statusLabel(n.payload?.status) }}</span>
             </div>
           </div>
         </div>
@@ -95,5 +100,31 @@ export class NotificationsPage implements OnInit{
     if(!n.isRead){ await this.store.markRead(n.id); }
     if(n.actionUrl){ await this.router.navigateByUrl(n.actionUrl); }
     else this.store.refresh();
+  }
+
+  statusLabel(s?: string | null): string {
+    if (!s) return '—';
+    switch (s) {
+      case 'DRAFT': return 'Brouillon';
+      case 'SUBMITTED': return 'En attente';
+      case 'MANAGER_APPROVED': return 'Pré-validée (manager)';
+      case 'HR_APPROVED':
+      case 'RH_APPROVED':
+      case 'APPROVED': return 'Validée (finale)';
+      case 'REJECTED': return 'Refusée';
+      case 'CANCELLED': return 'Annulée';
+      default: return s;
+    }
+  }
+
+  statusBadgeClass(s?: string | null): string {
+    const v = (s || '').toUpperCase();
+    if (v === 'SUBMITTED') return 'text-bg-warning';
+    if (v === 'MANAGER_APPROVED') return 'text-bg-info';
+    if (v === 'HR_APPROVED' || v === 'RH_APPROVED' || v === 'APPROVED') return 'text-bg-success';
+    if (v === 'REJECTED') return 'text-bg-danger';
+    if (v === 'CANCELLED') return 'text-bg-secondary';
+    if (v === 'DRAFT') return 'text-bg-light text-dark';
+    return 'text-bg-secondary';
   }
 }

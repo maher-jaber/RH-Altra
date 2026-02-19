@@ -21,10 +21,20 @@ class LeaveBalanceController extends ApiBase
 
         $types = $em->getRepository(LeaveType::class)->findAll();
         $items = [];
-        $accrual = $settings->leaveAccrualPerMonth();
         $today = new \DateTimeImmutable('today');
 
-        foreach ($types as $t) {
+        $countsSickAsAnnual = $settings->sickLeaveCountsAsAnnual($u);
+
+        // Preload Annual/Sick type entities (if present) for cross-type calculations.
+        $annualType = null;
+        $sickType = null;
+        foreach ($types as $t0) {
+            if ($t0->getCode() === 'ANNUAL') $annualType = $t0;
+            if ($t0->getCode() === 'SICK') $sickType = $t0;
+        }
+
+        // Helper to sum used days for a given type (and year window).
+        $sumUsed = function(LeaveType $t) use ($em, $u, $from, $to): float {
             $qb = $em->createQueryBuilder();
             $qb->select('COALESCE(SUM(l.daysCount),0)')
                 ->from(LeaveRequest::class, 'l')
@@ -39,15 +49,55 @@ class LeaveBalanceController extends ApiBase
                     'from' => $from,
                     'to' => $to,
                 ]);
-            $used = (float)$qb->getQuery()->getSingleScalarResult();
-            $allow = (float)$t->getAnnualAllowance();
+            return (float)$qb->getQuery()->getSingleScalarResult();
+        };
 
-            // If accrual is enabled, compute allowance for ANNUAL leave dynamically:
-            // allowance = initialBalance + (completed cycles × rate_for_contract).
-            if ($t->getCode() === 'ANNUAL') {
-                $allow = $settings->accruedAnnualAllowanceForUser($u, $year, $today);
+        // Compute annual allowance and "annual used" possibly including sick.
+        $annualAllowance = null;
+        $annualUsed = null;
+        $annualRemaining = null;
+
+        if ($annualType) {
+            $annualAllowance = $settings->accruedAnnualAllowanceForUser($u, $year, $today);
+            $annualUsed = $sumUsed($annualType);
+            if ($countsSickAsAnnual && $sickType) {
+                $annualUsed += $sumUsed($sickType);
             }
+            $annualRemaining = max(0.0, (float)$annualAllowance - (float)$annualUsed);
+        }
+
+        foreach ($types as $t) {
+            $allow = (float)$t->getAnnualAllowance();
+            $used = $sumUsed($t);
+
+            if ($t->getCode() === 'ANNUAL' && $annualType) {
+                $allow = (float)$annualAllowance;
+                $used = (float)$annualUsed;
+            }
+
+            if ($t->getCode() === 'SICK' && $countsSickAsAnnual && $annualType) {
+                // In this mode, sick leave consumes the annual balance (no separate allowance).
+                $allow = (float)$annualAllowance;
+                // Show the same remaining balance as annual, but keep used as "annual used" for clarity.
+                $used = (float)$annualUsed;
+            }
+
+            if ($t->getCode() === 'SICK' && !$countsSickAsAnnual) {
+                // Separate sick balance: allowance is configured by contract type (settings).
+                $ct = method_exists($u, 'getContractType') ? $u->getContractType() : null;
+                $allow = (float)$settings->sickLeaveAnnualQuotaForContract($ct);
+                $used = (float)$sumUsed($t);
+            }
+
             $remaining = ($allow > 0) ? max(0.0, $allow - $used) : null;
+
+            // If sick counts as annual, keep remaining aligned with annual computed remaining.
+            if ($t->getCode() === 'SICK' && $countsSickAsAnnual && $annualType) {
+                $remaining = $annualRemaining;
+            }
+            if ($t->getCode() === 'ANNUAL' && $annualType) {
+                $remaining = $annualRemaining;
+            }
 
             $items[] = [
                 'type' => [

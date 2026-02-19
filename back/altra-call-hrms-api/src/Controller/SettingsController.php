@@ -47,6 +47,12 @@ class SettingsController extends ApiBase
                 'cycleDay' => $this->settings->leaveAccrualCycleDay(),
                 'byContract' => $this->settings->leaveAccrualByContract(),
             ],
+            'sickLeave' => [
+                'defaultPolicy' => $this->settings->sickLeaveDefaultPolicy(),
+                'byContract' => $this->settings->sickLeavePolicyByContract(),
+                'defaultAnnualQuotaDays' => $this->settings->sickLeaveDefaultAnnualQuota(),
+                'annualQuotaByContract' => $this->settings->sickLeaveAnnualQuotaByContract(),
+            ],
             'exit' => [
                 'enforceHours' => (bool)$this->settings->get(SettingsService::KEY_EXIT_ENFORCE_HOURS, false),
                 'workStart' => (string)$this->settings->get(SettingsService::KEY_EXIT_WORK_START, '08:00'),
@@ -149,6 +155,51 @@ class SettingsController extends ApiBase
                     $out[$key] = $f;
                 }
                 $this->settings->set(SettingsService::KEY_LEAVE_ACCRUAL_BY_CONTRACT, $out);
+            }
+        }
+
+
+        if (isset($data['sickLeave']) && is_array($data['sickLeave'])) {
+            $sl = $data['sickLeave'];
+            if (array_key_exists('defaultPolicy', $sl)) {
+                $v = strtoupper(trim((string)$sl['defaultPolicy']));
+                if (!in_array($v, ['OWN','ANNUAL'], true)) $v = 'OWN';
+                $this->settings->set(SettingsService::KEY_SICK_LEAVE_DEFAULT_POLICY, $v);
+            }
+            if (array_key_exists('byContract', $sl)) {
+                $m = $sl['byContract'];
+                if (!is_array($m)) $m = [];
+                $out = [];
+                foreach ($m as $k => $v) {
+                    $key = strtoupper(trim((string)$k));
+                    if ($key === '') continue;
+                    $p = strtoupper(trim((string)$v));
+                    if (!in_array($p, ['OWN','ANNUAL'], true)) $p = 'OWN';
+                    $out[$key] = $p;
+                }
+                $this->settings->set(SettingsService::KEY_SICK_LEAVE_POLICY_BY_CONTRACT, $out);
+            }
+
+            if (array_key_exists('defaultAnnualQuotaDays', $sl)) {
+                $v = (float)$sl['defaultAnnualQuotaDays'];
+                if ($v < 0) $v = 0;
+                if ($v > 365) $v = 365;
+                $this->settings->set(SettingsService::KEY_SICK_LEAVE_DEFAULT_ANNUAL_QUOTA, $v);
+            }
+
+            if (array_key_exists('annualQuotaByContract', $sl)) {
+                $m = $sl['annualQuotaByContract'];
+                if (!is_array($m)) $m = [];
+                $out = [];
+                foreach ($m as $k => $v) {
+                    $key = strtoupper(trim((string)$k));
+                    if ($key === '') continue;
+                    $f = (float)$v;
+                    if ($f < 0) $f = 0;
+                    if ($f > 365) $f = 365;
+                    $out[$key] = $f;
+                }
+                $this->settings->set(SettingsService::KEY_SICK_LEAVE_ANNUAL_QUOTA_BY_CONTRACT, $out);
             }
         }
 

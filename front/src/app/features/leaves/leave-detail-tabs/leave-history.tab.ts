@@ -21,7 +21,7 @@ import { LeaveWorkflowService } from '../../../core/api/leave-workflow.service';
           <div class="dot"></div>
           <div class="content">
             <div class="d-flex justify-content-between gap-2 flex-wrap">
-              <div><b>{{x.action || x.status || 'Action'}}</b></div>
+              <div><b>{{ displayAction(x) }}</b></div>
               <div class="muted">{{x.at || x.createdAt || ''}}</div>
             </div>
             <div class="muted" *ngIf="x.byEmail || x.byName">par {{x.byName || x.byEmail}}</div>
@@ -52,4 +52,22 @@ export class LeaveHistoryTab implements OnInit{
   }
 
   trackById = (_:number, x:any) => x?.id || x?.at || _;
+
+  displayAction(x: any): string {
+    if (!x) return 'Action';
+    if (x.action) return x.action;
+    const s = (x.status || x.toStatus || x.newStatus || '').toString();
+    if (!s) return 'Action';
+    switch (s) {
+      case 'DRAFT': return 'Brouillon';
+      case 'SUBMITTED': return 'Soumise (en attente manager)';
+      case 'MANAGER_APPROVED': return 'Pré-validée (manager)';
+      case 'HR_APPROVED':
+      case 'RH_APPROVED':
+      case 'APPROVED': return 'Validée (finale)';
+      case 'REJECTED': return 'Refusée';
+      case 'CANCELLED': return 'Annulée';
+      default: return s;
+    }
+  }
 }

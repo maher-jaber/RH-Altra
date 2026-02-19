@@ -8,9 +8,9 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
+import { AlertService } from '../../core/ui/alert.service';
 
 type LeaveType = { id: string; code: string; label: string; annualAllowance: number; requiresCertificate: boolean };
 type BalanceRow = { type: LeaveType; year: number; usedDays: number; remainingDays: number | null };
@@ -20,7 +20,7 @@ type BalanceRow = { type: LeaveType; year: number; usedDays: number; remainingDa
   selector: 'app-leave-create',
   imports: [
     CommonModule, FormsModule, RouterModule,
-    MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatButtonModule, MatSnackBarModule
+    MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatButtonModule
   ],
   styles: [`
     mat-card{border-radius:16px}
@@ -136,7 +136,7 @@ export class LeaveCreatePage implements OnInit {
   creating = false;
   validationMsg = signal<string>('');
 
-  constructor(private api: LeaveWorkflowService, private snack: MatSnackBar, private router: Router) {}
+  constructor(private api: LeaveWorkflowService, private alert: AlertService, private router: Router) {}
 
   async ngOnInit() {
     const [typesRes, balRes] = await Promise.all([
@@ -251,7 +251,7 @@ requiresCertificate(): boolean {
       if (id && this.file) {
         await this.api.uploadCertificate(id, this.file);
       }
-      this.snack.open('Demande créée (brouillon)', 'OK', { duration: 2500 });
+      this.alert.toast({ title: 'Demande enregistrée (brouillon)', icon: 'success' });
       this.router.navigateByUrl('/leaves/my');
     } catch (e: any) {
       const code = e?.error?.error || 'Erreur';
@@ -260,7 +260,7 @@ requiresCertificate(): boolean {
         : code === 'past_dates'
           ? 'Les dates ne doivent pas être dans le passé.'
           : code;
-      this.snack.open('Échec: ' + msg, 'OK', { duration: 3500 });
+      this.alert.toast({ title: 'Échec', text: msg, icon: 'error' });
     } finally {
       this.creating = false;
     }
@@ -279,7 +279,7 @@ requiresCertificate(): boolean {
         await this.api.uploadCertificate(id, this.file);
       }
       if (id) await this.api.submitLeave(id);
-      this.snack.open('Demande soumise', 'OK', { duration: 2500 });
+      this.alert.toast({ title: 'Demande soumise', icon: 'success' });
       this.router.navigateByUrl('/leaves');
     } catch (e: any) {
       const code = e?.error?.error || 'Erreur';
@@ -288,7 +288,7 @@ requiresCertificate(): boolean {
         : code === 'past_dates'
           ? 'Les dates ne doivent pas être dans le passé.'
           : code;
-      this.snack.open('Échec: ' + msg, 'OK', { duration: 3500 });
+      this.alert.toast({ title: 'Échec', text: msg, icon: 'error' });
     } finally {
       this.creating = false;
     }

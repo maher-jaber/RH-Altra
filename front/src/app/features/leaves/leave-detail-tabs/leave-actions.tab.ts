@@ -62,12 +62,17 @@ export class LeaveActionsTab implements OnInit{
   canAct(){
     const lr = this.leave();
     if(!lr) return false;
-    // Manager permission is relationship-based (manager/manager2), not only ROLE_SUPERIOR.
-    const isManager = (lr.manager?.id === this.meId());
-    const isManager2 = (lr.manager2?.id === this.meId());
-    const alreadySigned = (!!lr.managerSignedAt && isManager) || (!!lr.manager2SignedAt && isManager2);
-    if((isManager || isManager2) && lr.status === 'SUBMITTED' && !alreadySigned) return true;
-    return false;
+
+    const meId = this.meId();
+    // IDs may arrive as string from API; normalize to number for strict comparisons.
+    const isManager = (Number(lr.manager?.id) === meId);
+    const isManager2 = (Number(lr.manager2?.id) === meId);
+
+    const status = String(lr.status || '').toUpperCase();
+    const alreadySigned = ((!!lr.managerSignedAt || !!lr.manager_signed_at) && isManager)
+                       || ((!!lr.manager2SignedAt || !!lr.manager2_signed_at) && isManager2);
+
+    return (isManager || isManager2) && status === 'SUBMITTED' && !alreadySigned;
   }
 
   async approve(){

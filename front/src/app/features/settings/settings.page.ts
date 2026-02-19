@@ -113,6 +113,56 @@ import { AlertService } from '../../core/ui/alert.service';
     </div>
 
     <div class="card mt-3 p-3" style="border-radius:16px">
+      <h5 class="mb-2">Congé maladie</h5>
+      <div class="text-muted" style="font-size:13px">
+        Définir comment le congé maladie est consommé selon le type de contrat.
+      </div>
+
+      <div class="row g-3 mt-1">
+        <div class="col-12 col-md-4">
+          <label class="form-label">Politique par défaut</label>
+          <select class="form-select" [(ngModel)]="model.sickLeave!.defaultPolicy" [ngModelOptions]="{standalone:true}">
+            <option [ngValue]="'OWN'">Solde maladie annuel (séparé)</option>
+            <option [ngValue]="'ANNUAL'">Déduire du congé annuel</option>
+          </select>
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label">Quota maladie annuel par défaut (jours/an)</label>
+          <input class="form-control" type="number" min="0" max="365" step="0.5" [(ngModel)]="model.sickLeave!.defaultAnnualQuotaDays" [ngModelOptions]="{standalone:true}">
+          <div class="text-muted" style="font-size:12px">Utilisé uniquement si la politique est “Solde séparé (OWN)”.</div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Politique par type de contrat</label>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead><tr><th>Type</th><th style="width:260px">Politique</th><th style="width:180px">Quota (jours/an)</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let k of contractKeys()">
+                  <td class="align-middle">{{k}}</td>
+                  <td>
+                    <select class="form-select form-select-sm" [(ngModel)]="model.sickLeave!.byContract![k]" [ngModelOptions]="{standalone:true}">
+                      <option [ngValue]="'OWN'">Solde maladie annuel (séparé)</option>
+                      <option [ngValue]="'ANNUAL'">Déduire du congé annuel</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" type="number" min="0" max="365" step="0.5" [(ngModel)]="model.sickLeave!.annualQuotaByContract![k]" [ngModelOptions]="{standalone:true}">
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="text-muted" style="font-size:12px">
+            Si un type n’existe pas dans la liste, l’application utilise la “Politique par défaut”.
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="card mt-3 p-3" style="border-radius:16px">
       <h5 class="mb-2">Autorisation de sortie</h5>
       <div class="row g-3">
         <div class="col-12 col-md-4">
@@ -250,6 +300,7 @@ export class SettingsPage implements OnInit {
     },
     annualLeaveDays: 18,
     leaveAccrual: { perMonth: 0, defaultInitialBalance: 0, cycleDay: 21, byContract: { CDI: 1.75, CDD: 1.25 } },
+    sickLeave: { defaultPolicy: 'OWN', byContract: { CDI: 'OWN', CDD: 'OWN' }, defaultAnnualQuotaDays: 0, annualQuotaByContract: { CDI: 0, CDD: 0 } },
     workWeek: { weekendDays: [6,7] },
     leaveRules: { minNoticeDays: 0, maxDaysPerRequest: 60, allowPastDates: false },
     exit: { enforceHours: false, workStart: '08:00', workEnd: '18:00' }
@@ -273,6 +324,7 @@ constructor(private api: SettingsApiService, private holidaysApi: HolidayService
     const exit = s.exit || base.exit;
     const la = s.leaveAccrual || base.leaveAccrual || { perMonth: 0, defaultInitialBalance: 0 };
     const workWeek = s.workWeek || base.workWeek || { weekendDays: [6,7] };
+    const sl = s.sickLeave || (base as any).sickLeave || { defaultPolicy: 'OWN', byContract: {}, defaultAnnualQuotaDays: 0, annualQuotaByContract: {} };
     const leaveRules = s.leaveRules || base.leaveRules || { minNoticeDays: 0, maxDaysPerRequest: 60, allowPastDates: false };
     return {
       mailNotifications: mail,
@@ -282,6 +334,12 @@ constructor(private api: SettingsApiService, private holidaysApi: HolidayService
         defaultInitialBalance: typeof la.defaultInitialBalance === 'number' ? la.defaultInitialBalance : 0,
         cycleDay: typeof la.cycleDay === 'number' ? la.cycleDay : 21,
         byContract: (la.byContract && typeof la.byContract === 'object' && Object.keys(la.byContract).length) ? la.byContract : { CDI: 1.75, CDD: 1.25 },
+      },
+      sickLeave: {
+        defaultPolicy: (sl.defaultPolicy === 'ANNUAL' ? 'ANNUAL' : 'OWN') as any,
+        byContract: (sl.byContract && typeof sl.byContract === 'object') ? sl.byContract : {},
+        defaultAnnualQuotaDays: (typeof sl.defaultAnnualQuotaDays === 'number') ? sl.defaultAnnualQuotaDays : 0,
+        annualQuotaByContract: (sl.annualQuotaByContract && typeof sl.annualQuotaByContract === 'object') ? sl.annualQuotaByContract : {},
       },
       workWeek: {
         weekendDays: Array.isArray(workWeek.weekendDays) && workWeek.weekendDays.length ? workWeek.weekendDays.map((x:any)=>+x) : [6,7]
@@ -410,9 +468,46 @@ constructor(private api: SettingsApiService, private holidaysApi: HolidayService
     return la.byContract as Record<string, number>;
   }
 
+
+  private ensureSickMap(): Record<string, 'OWN'|'ANNUAL'> {
+    if (!this.model.sickLeave) {
+      (this.model as any).sickLeave = { defaultPolicy: 'OWN', byContract: {}, defaultAnnualQuotaDays: 0, annualQuotaByContract: {} };
+    }
+    const sl: any = (this.model as any).sickLeave;
+    if (!sl.byContract) sl.byContract = {};
+    // Normalize values
+    for (const k of Object.keys(sl.byContract)) {
+      const v = String(sl.byContract[k] || '').toUpperCase();
+      sl.byContract[k] = (v === 'ANNUAL') ? 'ANNUAL' : 'OWN';
+    }
+    return sl.byContract as Record<string, 'OWN'|'ANNUAL'>;
+  }
+
+  private ensureSickQuotaMap(): Record<string, number> {
+    if (!this.model.sickLeave) {
+      (this.model as any).sickLeave = { defaultPolicy: 'OWN', byContract: {}, defaultAnnualQuotaDays: 0, annualQuotaByContract: {} };
+    }
+    const sl: any = (this.model as any).sickLeave;
+    if (typeof sl.defaultAnnualQuotaDays !== 'number') sl.defaultAnnualQuotaDays = Number(sl.defaultAnnualQuotaDays || 0) || 0;
+    if (!sl.annualQuotaByContract) sl.annualQuotaByContract = {};
+    for (const k of Object.keys(sl.annualQuotaByContract)) {
+      const n = Number(sl.annualQuotaByContract[k]);
+      sl.annualQuotaByContract[k] = isFinite(n) ? Math.max(0, n) : 0;
+    }
+    return sl.annualQuotaByContract as Record<string, number>;
+  }
+
   contractKeys(): string[] {
     const map = this.ensureContractMap();
+    const sl = this.ensureSickMap();
+    const sq = this.ensureSickQuotaMap();
     const keys = Object.keys(map).sort((a, b) => a.localeCompare(b));
+
+    // Ensure sick maps contain the same keys
+    for (const k of keys) {
+      if (sl[k] === undefined) sl[k] = (this.model.sickLeave as any)?.defaultPolicy === 'ANNUAL' ? 'ANNUAL' : 'OWN';
+      if (sq[k] === undefined) sq[k] = Number((this.model.sickLeave as any)?.defaultAnnualQuotaDays || 0) || 0;
+    }
     // keep edit buffers in sync (avoid input "blocking" while user types)
     const next: Record<string,string> = {};
     for (const k of keys) next[k] = this.contractKeyEdits[k] ?? k;
@@ -439,15 +534,37 @@ constructor(private api: SettingsApiService, private holidaysApi: HolidayService
     const val = map[oldKey];
     delete map[oldKey];
     map[newKey] = val;
+
+    // keep sick leave policy map in sync
+    const sl = this.ensureSickMap();
+    if (Object.prototype.hasOwnProperty.call(sl, oldKey)) {
+      const p = sl[oldKey];
+      delete sl[oldKey];
+      sl[newKey] = p;
+    }
+
+    // keep sick leave quota map in sync
+    const sq = this.ensureSickQuotaMap();
+    if (Object.prototype.hasOwnProperty.call(sq, oldKey)) {
+      const q = sq[oldKey];
+      delete sq[oldKey];
+      sq[newKey] = q;
+    }
   }
 
   removeContract(key: string) {
     const map = this.ensureContractMap();
     delete map[key];
+    const sl = this.ensureSickMap();
+    delete sl[key];
+    const sq = this.ensureSickQuotaMap();
+    delete sq[key];
   }
 
   addContract() {
     const map = this.ensureContractMap();
+    const sl = this.ensureSickMap();
+    const sq = this.ensureSickQuotaMap();
     const base = 'NOUVEAU';
     let k = base;
     let i = 2;
@@ -456,6 +573,8 @@ constructor(private api: SettingsApiService, private holidaysApi: HolidayService
     }
     const fallback = (this.model.leaveAccrual as any)?.perMonth ?? 0;
     map[k] = Number(fallback) || 0;
+    sl[k] = (this.model.sickLeave as any)?.defaultPolicy === 'ANNUAL' ? 'ANNUAL' : 'OWN';
+    sq[k] = Number((this.model.sickLeave as any)?.defaultAnnualQuotaDays || 0) || 0;
   }
 
 }
