@@ -49,17 +49,17 @@ export type DailyReportDetailData = {
 
       <div class="section">
         <div class="label">Tâches réalisées</div>
-        <div class="box">{{data.report?.tasks || '—'}}</div>
+        <div class="box" [innerHTML]="toHtml(data.report?.tasks)"></div>
       </div>
 
       <div class="section" *ngIf="data.report?.blockers">
         <div class="label">Blocages</div>
-        <div class="box">{{data.report.blockers}}</div>
+        <div class="box" [innerHTML]="toHtml(data.report.blockers)"></div>
       </div>
 
       <div class="section" *ngIf="data.report?.nextDayPlan">
         <div class="label">Plan pour demain</div>
-        <div class="box">{{data.report.nextDayPlan}}</div>
+        <div class="box" [innerHTML]="toHtml(data.report.nextDayPlan)"></div>
       </div>
     </div>
 
@@ -80,7 +80,9 @@ export type DailyReportDetailData = {
 
     .section{margin:12px 0}
     .label{font-size:12px;font-weight:900;letter-spacing:.3px;text-transform:uppercase;opacity:.7;margin-bottom:6px}
-    .box{border:1px solid var(--stroke);background:var(--surface);border-radius:14px;padding:12px 12px;white-space:pre-wrap;line-height:1.45}
+    .box{border:1px solid var(--stroke);background:var(--surface);border-radius:14px;padding:12px 12px;line-height:1.45}
+    .box ul,.box ol{padding-left:18px;margin:6px 0}
+    .box p{margin:0 0 6px}
 
     .actions{display:flex;justify-content:flex-end;padding:10px 18px 16px}
     `
@@ -88,4 +90,19 @@ export type DailyReportDetailData = {
 })
 export class DailyReportDetailDialog {
   constructor(@Inject(MAT_DIALOG_DATA) public data: DailyReportDetailData) {}
+
+  toHtml(v: any): string {
+    const s = (v ?? '') as string;
+    if (!s) return '—';
+    // If it already looks like HTML, render it; otherwise escape and keep new lines.
+    const looksLikeHtml = /<\w+[^>]*>/.test(s);
+    if (looksLikeHtml) return s;
+    const esc = s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+    return esc.replace(/\n/g, '<br>');
+  }
 }

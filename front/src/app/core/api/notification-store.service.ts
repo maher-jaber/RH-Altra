@@ -61,4 +61,10 @@ export class NotificationStoreService {
     const cur = this.items();
     this.items.set(cur.map(n => n.id === id ? { ...n, isRead: true } : n));
   }
+
+  async markAllRead(): Promise<void> {
+    await firstValueFrom(this.api.markAllAsRead());
+    const cur = this.items();
+    this.items.set(cur.map(n => ({ ...n, isRead: true })));
+  }
 }

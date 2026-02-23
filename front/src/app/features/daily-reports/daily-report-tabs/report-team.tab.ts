@@ -55,8 +55,8 @@ import { AuthService } from '../../../core/auth.service';
                     <div class="fw-semibold">{{r.user?.fullName || r.user?.email || '—'}}</div>
                   </td>
                   <td>
-                    <div class="text-truncate" style="max-width:640px">{{r.tasks}}</div>
-                    <div class="muted" *ngIf="r.blockers">Blocages: {{r.blockers}}</div>
+                    <div class="text-truncate" style="max-width:640px">{{strip(r.tasks)}}</div>
+                    <div class="muted" *ngIf="r.blockers">Blocages: {{strip(r.blockers)}}</div>
                   </td>
                   <td class="text-end">{{r.hours ?? '—'}}</td>
                 </tr>
@@ -87,6 +87,11 @@ export class DailyReportTeamTab implements OnChanges {
 
   constructor(private api: DailyReportService, private auth: AuthService, private dialog: MatDialog) {
     if (this.canSee()) void this.load();
+  }
+
+  strip(v: any): string {
+    const s = (v ?? '') as string;
+    return s.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
   }
 
   canSee(): boolean {

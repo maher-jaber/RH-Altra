@@ -49,8 +49,8 @@ import { DailyReportService } from '../../../core/api/daily-report.service';
                 <tr *ngFor="let r of items()" class="row-click" (click)="open(r)">
                   <td class="fw-semibold">{{r.date | date:'mediumDate'}}</td>
                   <td>
-                    <div class="text-truncate" style="max-width:640px">{{r.tasks}}</div>
-                    <div class="muted" *ngIf="r.blockers">Blocages: {{r.blockers}}</div>
+                    <div class="text-truncate" style="max-width:640px">{{strip(r.tasks)}}</div>
+                    <div class="muted" *ngIf="r.blockers">Blocages: {{strip(r.blockers)}}</div>
                   </td>
                   <td class="text-end">{{r.hours ?? '—'}}</td>
                   <td class="text-end muted">{{r.createdAt | date:'short'}}</td>
@@ -82,6 +82,12 @@ export class DailyReportMyTab implements OnChanges {
 
   constructor(private api: DailyReportService, private dialog: MatDialog) {
     void this.load();
+  }
+
+  strip(v: any): string {
+    const s = (v ?? '') as string;
+    // simple & safe: remove tags for list preview
+    return s.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
   }
 
   ngOnChanges(changes: SimpleChanges): void {

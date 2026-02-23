@@ -91,4 +91,21 @@ class NotificationController extends ApiBase
         $em->flush();
         return $this->jsonOk(['ok'=>true]);
     }
+
+        #[Route('/api/notifications/read-all', methods:['POST'])]
+    public function readAll(Request $r, EntityManagerInterface $em): JsonResponse {
+        $user = $this->getCurrentUser($r, $em);
+
+        $qb = $em->createQueryBuilder()
+            ->update(Notification::class, 'n')
+            ->set('n.isRead', ':t')
+            ->where('n.user = :u')
+            ->andWhere('n.isRead = :f')
+            ->setParameter('t', true)
+            ->setParameter('f', false)
+            ->setParameter('u', $user);
+
+        $affected = (int)$qb->getQuery()->execute();
+        return $this->jsonOk(['ok'=>true, 'updated'=>$affected]);
+    }
 }

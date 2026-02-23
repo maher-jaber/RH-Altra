@@ -9,7 +9,6 @@ use Doctrine\ORM\EntityManagerInterface;
 class SettingsService
 {
     public const KEY_MAIL_NOTIFS = 'mail_notifications';
-    public const KEY_ANNUAL_LEAVE_DAYS = 'annual_leave_days';
     public const KEY_EXIT_ENFORCE_HOURS = 'exit_enforce_hours';
     public const KEY_EXIT_WORK_START = 'exit_work_start';
     public const KEY_EXIT_WORK_END = 'exit_work_end';

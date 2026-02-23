@@ -33,7 +33,7 @@ type BalanceRow = { type: LeaveType; year: number; usedDays: number; remainingDa
     <mat-card>
       <div class="row" style="justify-content:space-between">
         <h2>Nouvelle demande de congé</h2>
-        <a mat-stroked-button routerLink="/leaves">Dashboard</a>
+    
       </div>
 
       <div class="grid">

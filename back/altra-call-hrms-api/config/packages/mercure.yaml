@@ -1,6 +1,9 @@
 mercure:
   hubs:
     default:
-      url: '%env(MERCURE_PUBLIC_URL)%'
+      # MERCURE_URL is used by the backend to publish updates (internal/Docker URL).
+      # MERCURE_PUBLIC_URL is kept for clients (browser) and as a fallback.
+      url: '%env(resolve:MERCURE_URL)%'
+      public_url: '%env(resolve:MERCURE_PUBLIC_URL)%'
       jwt:
         secret: '%env(MERCURE_JWT_SECRET)%'

@@ -13,9 +13,7 @@ import { MatBadgeModule } from '@angular/material/badge';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
-import { AlertService } from '../../core/ui/alert.service';
 import { AuthService } from '../../core/auth.service';
-import { NotificationService } from '../../core/api/notification.service';
 import { NotificationStoreService } from '../../core/api/notification-store.service';
 import { NotificationItem } from '../../core/models';
 
@@ -373,13 +371,10 @@ export class ShellComponent implements OnInit, OnDestroy {
   pageTitle = signal<string>('Tableau de bord');
   routeAnimKey = signal<string>('dashboard');
   uiMode = signal<'dark' | 'light'>('light');
-  private stopSse: (() => void) | null = null;
 
   constructor(
     public auth: AuthService,
-    private notif: NotificationService,
     public notifStore: NotificationStoreService,
-    private alert: AlertService,
     private router: Router,
     private route: ActivatedRoute
   ) {}
@@ -403,17 +398,10 @@ export class ShellComponent implements OnInit, OnDestroy {
       const urlKey = (this.router.url || '').replace(/^\//, '') || 'dashboard';
       this.routeAnimKey.set(urlKey);
     });
-
-    this.notifStore.start();
-
-    this.stopSse = this.notif.subscribeMercure((n: NotificationItem) => {
-      this.alert.toast({ icon: 'info', title: n.title, text: n.body });
-    });
   }
 
   ngOnDestroy(): void {
-    if (this.stopSse) this.stopSse();
-    this.notifStore.stop();
+    // No-op: realtime notifications are managed globally.
   }
 
   toggleUiMode(): void {

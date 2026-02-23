@@ -26,6 +26,10 @@ export class NotificationService {
     return this.http.post(`${environment.apiBaseUrl}/api/notifications/${id}/read`, {});
   }
 
+  markAllAsRead() {
+    return this.http.post(`${environment.apiBaseUrl}/api/notifications/read-all`, {});
+  }
+
   /**
    * SSE / Mercure subscription for current user (topic: /users/{apiKey}/notifications)
    */

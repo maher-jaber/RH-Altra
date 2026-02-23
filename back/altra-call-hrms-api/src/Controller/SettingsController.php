@@ -2,7 +2,6 @@
 
 namespace App\Controller;
 
-use App\Entity\LeaveType;
 use App\Service\SettingsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -32,7 +31,6 @@ class SettingsController extends ApiBase
                 'manager'  => ['ALL' => true],
                 'admin'    => ['ALL' => true],
             ]),
-            'annualLeaveDays' => $this->settings->get(SettingsService::KEY_ANNUAL_LEAVE_DAYS, 18),
             'workWeek' => [
                 'weekendDays' => $this->settings->getWeekendDays(),
             ],
@@ -72,20 +70,6 @@ class SettingsController extends ApiBase
         if (isset($data['mailNotifications']) && is_array($data['mailNotifications'])) {
             $this->settings->set(SettingsService::KEY_MAIL_NOTIFS, $data['mailNotifications']);
         }
-
-        if (isset($data['annualLeaveDays'])) {
-            $v = (float)$data['annualLeaveDays'];
-            if ($v < 0) $v = 0;
-            if ($v > 60) $v = 60;
-            $this->settings->set(SettingsService::KEY_ANNUAL_LEAVE_DAYS, $v);
-
-            // also sync LeaveType ANNUAL allowance for consistency
-            $t = $this->em->getRepository(LeaveType::class)->findOneBy(['code' => 'ANNUAL']);
-            if ($t) {
-                $t->setAnnualAllowance($v);
-            }
-        }
-
 
         if (isset($data['workWeek']) && is_array($data['workWeek'])) {
             $w = $data['workWeek'];

@@ -70,14 +70,9 @@ import { AlertService } from '../../core/ui/alert.service';
       <h5 class="mb-2">Congé annuel</h5>
       <div class="row g-3">
         <div class="col-12 col-md-4">
-          <label class="form-label">Nombre de jours annuels</label>
-          <input class="form-control" type="number" min="0" max="60" [(ngModel)]="model.annualLeaveDays" [ngModelOptions]="{standalone:true}">
-        </div>
-
-        <div class="col-12 col-md-4">
-          <label class="form-label">Acquisition mensuelle (jours/mois)</label>
+          <label class="form-label">Acquisition mensuelle par défaut (jours/mois)</label>
           <input class="form-control" type="number" min="0" max="10" step="0.5" [(ngModel)]="model.leaveAccrual!.perMonth" [ngModelOptions]="{standalone:true}">
-          <div class="text-muted" style="font-size:12px">Si &gt; 0 : le solde annuel se calcule automatiquement (solde initial + mois travaillés × taux).</div>
+          <div class="text-muted" style="font-size:12px">Taux mensuel utilisé comme <b>valeur par défaut</b> si aucun taux n’est défini pour le type de contrat. Le solde se calcule via (solde initial + cycles × taux).</div>
         </div>
 
         <div class="col-12 col-md-4">
@@ -298,7 +293,6 @@ export class SettingsPage implements OnInit {
       manager: { ALL: true, LEAVE: true, ADVANCE: true, EXIT_PERMISSION: true },
       admin: { ALL: true, LEAVE: true, ADVANCE: true, EXIT_PERMISSION: true },
     },
-    annualLeaveDays: 18,
     leaveAccrual: { perMonth: 0, defaultInitialBalance: 0, cycleDay: 21, byContract: { CDI: 1.75, CDD: 1.25 } },
     sickLeave: { defaultPolicy: 'OWN', byContract: { CDI: 'OWN', CDD: 'OWN' }, defaultAnnualQuotaDays: 0, annualQuotaByContract: { CDI: 0, CDD: 0 } },
     workWeek: { weekendDays: [6,7] },
@@ -328,7 +322,6 @@ constructor(private api: SettingsApiService, private holidaysApi: HolidayService
     const leaveRules = s.leaveRules || base.leaveRules || { minNoticeDays: 0, maxDaysPerRequest: 60, allowPastDates: false };
     return {
       mailNotifications: mail,
-      annualLeaveDays: typeof s.annualLeaveDays === 'number' ? s.annualLeaveDays : base.annualLeaveDays,
       leaveAccrual: {
         perMonth: typeof la.perMonth === 'number' ? la.perMonth : 0,
         defaultInitialBalance: typeof la.defaultInitialBalance === 'number' ? la.defaultInitialBalance : 0,

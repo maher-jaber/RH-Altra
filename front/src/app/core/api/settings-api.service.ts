@@ -5,7 +5,6 @@ import { firstValueFrom } from 'rxjs';
 
 export interface AppSettings {
   mailNotifications: any;
-  annualLeaveDays: number;
   leaveAccrual?: { perMonth: number; defaultInitialBalance: number; cycleDay?: number; byContract?: Record<string, number>; };
   sickLeave?: {
     defaultPolicy: 'OWN'|'ANNUAL';

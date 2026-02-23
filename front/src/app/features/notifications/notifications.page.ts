@@ -23,7 +23,10 @@ import { NotificationStoreService } from '../../core/api/notification-store.serv
 
     <div class="d-flex align-items-center justify-content-between">
       <h2 style="margin:0">Notifications</h2>
-      <button mat-stroked-button (click)="reload()">Rafraîchir</button>
+      <div class="d-flex align-items-center gap-2">
+        <button mat-stroked-button (click)="markAllRead()" [disabled]="unreadCount()===0">Tout marquer lu</button>
+        <button mat-stroked-button (click)="reload()">Rafraîchir</button>
+      </div>
     </div>
 
     <div style="height:10px"></div>
@@ -77,6 +80,7 @@ export class NotificationsPage implements OnInit{
   pageSize = this.store.pageSize;
   total = this.store.total;
   items = this.store.items;
+  unreadCount = this.store.unreadCount;
 
   constructor(public store:NotificationStoreService, private router:Router){}
   ngOnInit(){ this.store.start(); }
@@ -96,6 +100,7 @@ export class NotificationsPage implements OnInit{
 
   reload(){ this.store.refresh(); }
   async read(n:any){ await this.store.markRead(n.id); }
+  async markAllRead(){ await this.store.markAllRead(); }
   async open(n:any){
     if(!n.isRead){ await this.store.markRead(n.id); }
     if(n.actionUrl){ await this.router.navigateByUrl(n.actionUrl); }

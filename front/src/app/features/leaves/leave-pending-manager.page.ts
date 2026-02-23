@@ -19,7 +19,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
   <mat-card>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <h2>Validation Congés – Manager</h2>
-      <a mat-stroked-button routerLink="/leaves">Dashboard</a>
+   
     </div>
 
     <mat-form-field appearance="outline" style="width:100%">

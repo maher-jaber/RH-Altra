@@ -4,6 +4,17 @@ import { FormsModule } from '@angular/forms';
 
 import { HrPeopleHubService, HrEmployee, HrCalendarEvent } from '../../core/api/hr-people-hub.service';
 
+type CalendarUiEvent = {
+  title: string;
+  color: string;
+  kind: HrCalendarEvent['kind'];
+  status?: string;
+  entityId?: number;
+  start?: string;
+  end?: string;
+  userLabel?: string;
+};
+
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
@@ -31,6 +42,7 @@ function fmtYmd(d: Date): string {
     .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
     .dow{font-size:12px;opacity:.7;padding:0 6px}
     .cell{border:1px solid #eee;border-radius:14px;padding:8px;min-height:118px;background:#fff}
+    .cell.clickable{cursor:pointer}
     .cell.out{background:#fafafa;opacity:.75}
     .day{font-size:12px;opacity:.75;display:flex;justify-content:flex-end}
     .evt{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;white-space:nowrap;overflow:hidden}
@@ -41,6 +53,15 @@ function fmtYmd(d: Date): string {
     .kpi .value{font-weight:900;font-size:18px}
     .table thead th{font-size:12px;opacity:.7}
     .badge-soft{border:1px solid #eee;background:#fff}
+
+    /* Day modal (clean overlay) */
+    .day-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.42);backdrop-filter: blur(2px);z-index:1050}
+    .day-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;z-index:1060}
+    .day-modal-card{background:#fff;border-radius:18px;width:min(720px,92vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.18);border:1px solid rgba(0,0,0,.06)}
+    .day-modal-header{position:sticky;top:0;background:#fff;border-bottom:1px solid #eee;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-top-left-radius:18px;border-top-right-radius:18px}
+    .day-modal-title{font-weight:800;font-size:16px;margin:0}
+    .day-modal-body{padding:14px 16px;overflow:auto}
+    .day-modal-footer{border-top:1px solid #eee;padding:12px 16px;display:flex;justify-content:flex-end;gap:10px;border-bottom-left-radius:18px;border-bottom-right-radius:18px}
   `],
   template: `
   <div class="d-flex flex-wrap align-items-end justify-content:space-between gap-2 mb-3">
@@ -114,21 +135,67 @@ function fmtYmd(d: Date): string {
         <div class="grid">
           <div class="dow" *ngFor="let d of dows">{{d}}</div>
           <ng-container *ngFor="let c of cells()">
-            <div class="cell" [class.out]="c.out">
+            <div class="cell" [class.out]="c.out" [class.clickable]="c.allEvents.length>0" (click)="openDayModal(c)">
               <div class="day">{{c.day}}</div>
 
               <div class="evt" *ngFor="let e of c.events; let i=index" [title]="e.title">
                 <span class="dot" [style.background]="e.color"></span>
                 <span class="text-truncate">{{e.title}}</span>
               </div>
-              <div class="more" *ngIf="c.more > 0">+{{c.more}} autres</div>
+              <button type="button" class="btn btn-link p-0 more" *ngIf="c.more > 0" (click)="$event.stopPropagation(); openDayModal(c)">+{{c.more}} autres</button>
             </div>
           </ng-container>
         </div>
         <div class="muted mt-2" *ngIf="loadingCalendar()">Chargement calendrier...</div>
       </div>
 
-      <!-- LEAVES -->
+      <!-- Day details modal (calendar) -->
+      <div *ngIf="dayModalOpen()">
+        <div class="day-backdrop" (click)="closeDayModal()"></div>
+
+        <div class="day-modal" (click)="closeDayModal()">
+          <div class="day-modal-card" (click)="$event.stopPropagation()">
+            <div class="day-modal-header">
+              <h5 class="day-modal-title">{{dayModalDateLabel()}}</h5>
+              <button type="button" class="btn btn-sm btn-light" (click)="closeDayModal()" aria-label="Fermer">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+
+            <div class="day-modal-body">
+              <div class="muted mb-2">{{dayModalEvents().length}} événement(s)</div>
+
+              <div class="list-group">
+                <div class="list-group-item d-flex align-items-start justify-content-between gap-2" *ngFor="let e of dayModalEvents()">
+                  <div class="d-flex align-items-start gap-2">
+                    <span class="dot" [style.background]="e.color" style="margin-top:6px"></span>
+                    <div>
+                      <div class="d-flex flex-wrap align-items-center gap-2">
+                        <b>{{e.title}}</b>
+                        <span class="badge bg-light text-dark" style="border:1px solid #eee">{{e.kind}}</span>
+                        <span *ngIf="e.status" class="badge bg-secondary">{{statusLabel(e.status)}}</span>
+                        <span *ngIf="e.userLabel" class="badge badge-soft text-dark">{{e.userLabel}}</span>
+                      </div>
+                      <div class="muted mt-1" *ngIf="e.start || e.end">
+                        <span *ngIf="e.start">Du {{e.start}}</span>
+                        <span *ngIf="e.end"> au {{e.end}}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <span *ngIf="e.entityId" class="badge bg-light text-dark" style="border:1px solid #eee">#{{e.entityId}}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="day-modal-footer">
+              <button type="button" class="btn btn-outline-secondary" (click)="closeDayModal()">Fermer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+<!-- LEAVES -->
       <div *ngIf="tab() === 'leaves'">
         <div class="d-flex flex-wrap gap-2 align-items-center justify-content:space-between mb-2">
           <div class="muted">Liste des congés sur la période (filtrable).</div>
@@ -367,20 +434,45 @@ export class PeopleHubPage implements OnInit {
     gridStart.setDate(start.getDate() - startDow);
 
     const map = this.indexEvents();
-    const out: Array<{ date: Date; key: string; day: number; out: boolean; events: { title: string; color: string }[]; more: number }> = [];
+    const out: Array<{ date: Date; key: string; day: number; out: boolean; events: CalendarUiEvent[]; allEvents: CalendarUiEvent[]; more: number }> = [];
 
     for (let i = 0; i < 42; i++) {
       const d = new Date(gridStart);
       d.setDate(gridStart.getDate() + i);
       const key = fmtYmd(d);
       const inMonth = d.getMonth() === start.getMonth();
-      const all = map.get(key) ?? [];
-      const events = all.slice(0, 3);
-      const more = Math.max(0, all.length - events.length);
-      out.push({ date: d, key, day: d.getDate(), out: !inMonth, events, more });
+      const allEvents = map.get(key) ?? [];
+      const events = allEvents.slice(0, 3);
+      const more = Math.max(0, allEvents.length - events.length);
+      out.push({ date: d, key, day: d.getDate(), out: !inMonth, events, allEvents, more });
     }
     return out;
   });
+
+  // Day details modal (calendar)
+  dayModalOpen = signal(false);
+  dayModalKey = signal<string>('');
+  dayModalDateLabel = signal<string>('');
+  dayModalEvents = signal<CalendarUiEvent[]>([]);
+
+  openDayModal(cell: { date: Date; key: string; allEvents: CalendarUiEvent[] }): void {
+    if (!cell?.allEvents?.length) return;
+    this.dayModalKey.set(cell.key);
+    this.dayModalDateLabel.set(
+      cell.date.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+    );
+    this.dayModalEvents.set(cell.allEvents);
+    this.dayModalOpen.set(true);
+
+    // lock page scroll while modal is open
+    try { document.body.style.overflow = 'hidden'; } catch {}
+  }
+  closeDayModal(): void {
+    this.dayModalOpen.set(false);
+
+    // restore scroll
+    try { document.body.style.overflow = ''; } catch {}
+  }
 
   constructor(private api: HrPeopleHubService) {}
 
@@ -388,7 +480,6 @@ export class PeopleHubPage implements OnInit {
     await this.loadEmployees();
     await this.reloadAll();
   }
-
   async loadEmployees(): Promise<void> {
     try {
       const res = await this.api.employees(this.employeeSearch || undefined).toPromise();
@@ -402,15 +493,17 @@ export class PeopleHubPage implements OnInit {
     await this.reloadAll();
   }
 
-  prevMonth(): void { this.month.set(addMonths(this.month(), -1)); this.reloadAll(); }
-  nextMonth(): void { this.month.set(addMonths(this.month(), 1)); this.reloadAll(); }
+  // Fire-and-forget: we don't need to block UI navigation on API calls.
+  // Using `void` avoids unhandled-promise warnings in strict TS setups.
+  prevMonth(): void { this.month.set(addMonths(this.month(), -1)); void this.reloadAll(); }
+  nextMonth(): void { this.month.set(addMonths(this.month(), 1)); void this.reloadAll(); }
 
   setMonthFromInput(value: string): void {
     if (!value) return;
     const [y, m] = value.split('-').map(v => Number(v));
     if (!y || !m) return;
     this.month.set(new Date(y, m - 1, 1));
-    this.reloadAll();
+    void this.reloadAll();
   }
 
   async reloadAll(): Promise<void> {
@@ -544,10 +637,10 @@ export class PeopleHubPage implements OnInit {
   repPrev(){ if(this.repPageIndex()===0) return; this.repPageIndex.set(this.repPageIndex()-1); this.reloadReports(); }
   repNext(){ if((this.repPageIndex()+1)*this.repPageSize()>=this.repTotal()) return; this.repPageIndex.set(this.repPageIndex()+1); this.reloadReports(); }
 
-  private indexEvents(): Map<string, { title: string; color: string }[]> {
+  private indexEvents(): Map<string, CalendarUiEvent[]> {
     const { start, end } = this.monthRange();
     const items = this.calendarEvents();
-    const map = new Map<string, { title: string; color: string }[]>();
+    const map = new Map<string, CalendarUiEvent[]>();
 
     const monthStart = new Date(start);
     const monthEnd = new Date(end);
@@ -559,7 +652,14 @@ export class PeopleHubPage implements OnInit {
       return '#6f42c1';
     };
 
+    // Apply UI toggles (filters) for calendar rendering.
+    // Note: the /api/hr/calendar endpoint returns all kinds; filtering is done client-side.
     for (const it of items) {
+      if (it.kind === 'LEAVE' && !this.showLeaves) continue;
+      if (it.kind === 'EXIT' && !this.showExits) continue;
+      if (it.kind === 'ADVANCE' && !this.showAdvances) continue;
+      if (it.kind === 'REPORT' && !this.showReports) continue;
+
       const s = new Date(it.start);
       const e = new Date(it.end);
       const curStart = s < monthStart ? monthStart : s;
@@ -568,6 +668,8 @@ export class PeopleHubPage implements OnInit {
 
       const title = it.title;
       const color = kindColor(it.kind);
+
+      const userLabel = it.user?.fullName || it.user?.email || undefined;
 
       const d = new Date(curStart);
       // If it contains time, normalize to date increments.
@@ -578,7 +680,16 @@ export class PeopleHubPage implements OnInit {
       while (d <= endDate) {
         const key = fmtYmd(d);
         const arr = map.get(key) || [];
-        arr.push({ title, color });
+        arr.push({
+          title,
+          color,
+          kind: it.kind,
+          status: it.status,
+          entityId: it.entityId,
+          start: it.start,
+          end: it.end,
+          userLabel,
+        });
         map.set(key, arr);
         d.setDate(d.getDate() + 1);
       }

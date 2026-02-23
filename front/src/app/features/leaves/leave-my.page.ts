@@ -16,10 +16,6 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
   <mat-card>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <h2>Mes demandes de congé</h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <a mat-stroked-button routerLink="/leaves">Dashboard</a>
-      <a mat-flat-button color="primary" routerLink="/leaves/new">Nouvelle demande</a>
-    </div>
     </div>
     <table mat-table [dataSource]="items()">
       <ng-container matColumnDef="type">

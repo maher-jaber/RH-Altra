@@ -6,13 +6,15 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatCardModule } from '@angular/material/card';
 
+import { RichTextEditorComponent } from '../../../shared/rich-text-editor.component';
+
 import { AlertService } from '../../../core/ui/alert.service';
 import { DailyReportService } from '../../../core/api/daily-report.service';
 
 @Component({
   standalone: true,
   selector: 'app-daily-report-compose-tab',
-  imports: [CommonModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatCardModule],
+  imports: [CommonModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatCardModule, RichTextEditorComponent],
   template: `
     <div class="p-2 p-md-3">
       <div class="row g-3">
@@ -45,7 +47,12 @@ import { DailyReportService } from '../../../core/api/daily-report.service';
 
                 <div>
                   <label class="form-label">Tâches réalisées</label>
-                  <textarea class="form-control" rows="4" formControlName="tasks" placeholder="Ex: Implémentation pagination, correction API, tests..."></textarea>
+                  <app-rich-text-editor
+                    formControlName="tasks"
+                    [minHeight]="150"
+                    placeholder="Ex: Implémentation pagination, correction API, tests..."
+                    ariaLabel="Tâches réalisées"
+                  ></app-rich-text-editor>
                   <div class="form-text text-danger" *ngIf="form.controls.tasks.touched && form.controls.tasks.invalid">
                     Champ obligatoire.
                   </div>
@@ -54,11 +61,21 @@ import { DailyReportService } from '../../../core/api/daily-report.service';
                 <div class="row g-3">
                   <div class="col-12 col-md-6">
                     <label class="form-label">Blocages</label>
-                    <textarea class="form-control" rows="3" formControlName="blockers" placeholder="Ex: attente validation, accès DB..."></textarea>
+                    <app-rich-text-editor
+                      formControlName="blockers"
+                      [minHeight]="110"
+                      placeholder="Ex: attente validation, accès DB..."
+                      ariaLabel="Blocages"
+                    ></app-rich-text-editor>
                   </div>
                   <div class="col-12 col-md-6">
                     <label class="form-label">Plan demain</label>
-                    <textarea class="form-control" rows="3" formControlName="next" placeholder="Ex: finaliser calendrier, ajouter tests..."></textarea>
+                    <app-rich-text-editor
+                      formControlName="next"
+                      [minHeight]="110"
+                      placeholder="Ex: finaliser calendrier, ajouter tests..."
+                      ariaLabel="Plan demain"
+                    ></app-rich-text-editor>
                   </div>
                 </div>
 
