@@ -77,7 +77,7 @@ class AuthController extends ApiBase
                 $em->flush();
 
                 // Send reset link by email (never expose token in API response)
-                $frontend = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+                $frontend = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:8008');
                 $link = rtrim($frontend, '/') . '/reset-password?token=' . urlencode($token);
                 $name = $user->getFullName() ?: $user->getEmail();
                 $html = $this->mailer->renderEmail(

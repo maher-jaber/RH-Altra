@@ -23,7 +23,7 @@ class CorsSubscriber implements EventSubscriberInterface
         }
 
         $origin = $req->headers->get('Origin');
-        if ($origin === 'http://localhost:4200') {
+        if ($origin === 'http://localhost:8008') {
             $res->headers->set('Access-Control-Allow-Origin', $origin);
             $res->headers->set('Vary', 'Origin');
         }

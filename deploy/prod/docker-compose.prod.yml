@@ -58,7 +58,7 @@ services:
       dockerfile: deploy/prod/nginx/Dockerfile.prod
     image: altra-call-hrms-nginx:prod
     ports:
-      - "8001:80"
+      - "8008:80"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ../../back/altra-call-hrms-api/public:/var/www/api/public:ro

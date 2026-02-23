@@ -179,7 +179,7 @@ class ExitPermissionController extends ApiBase
                 payload: $n->getPayload()
             ));
 
-            $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+            $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:8008');
             $url = rtrim($base, '/') . '/exit-permissions/detail/' . $e->getId();
 
             $html = $this->mailer->renderEmail(
@@ -374,7 +374,7 @@ class ExitPermissionController extends ApiBase
                 payload: $n->getPayload()
             ));
 
-            $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+            $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:8008');
             $url = rtrim($base, '/') . '/exit-permissions/detail/' . $e->getId();
 
             $employee = $e->getUser();

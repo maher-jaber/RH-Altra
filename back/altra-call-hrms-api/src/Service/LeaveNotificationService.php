@@ -23,7 +23,7 @@ class LeaveNotificationService
         private string $projectDir = ''
     ) {
         $this->mailerDsn = $this->mailerDsn ?: (string) ($_ENV['MAILER_DSN'] ?? $_SERVER['MAILER_DSN'] ?? 'smtp://mailhog:1025');
-        $this->frontendUrl = $this->frontendUrl ?: (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+        $this->frontendUrl = $this->frontendUrl ?: (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:8008');
         $this->projectDir = $this->projectDir ?: (string) ($_ENV['PROJECT_DIR'] ?? $_SERVER['PROJECT_DIR'] ?? '');
     }
 

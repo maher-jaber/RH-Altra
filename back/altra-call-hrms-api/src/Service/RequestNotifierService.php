@@ -23,7 +23,7 @@ class RequestNotifierService
         private LeaveNotificationService $mailer,
         private string $frontendUrl = ''
     ) {
-        $this->frontendUrl = $this->frontendUrl ?: (string)($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+        $this->frontendUrl = $this->frontendUrl ?: (string)($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:8008');
     }
 
     /** @return User[] */

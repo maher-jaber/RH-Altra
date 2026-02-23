@@ -207,7 +207,7 @@ class AdvanceRequestController extends ApiBase
                 ));
 
                 try {
-                    $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+                    $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:8008');
                     $url = rtrim($base,'/') . '/advances/detail/' . $a->getId();
                     $emp = $a->getUser();
                     $empName = $emp ? ($emp->getFullName() ?: $emp->getEmail()) : '—';
@@ -436,7 +436,7 @@ class AdvanceRequestController extends ApiBase
             ));
 
             try {
-                $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:4200');
+                $base = (string) ($_ENV['FRONTEND_URL'] ?? $_SERVER['FRONTEND_URL'] ?? 'http://localhost:8008');
                 $url = rtrim($base,'/') . '/advances/detail/' . $a->getId();
                 $emp = $a->getUser();
                 $empName = $emp ? ($emp->getFullName() ?: $emp->getEmail()) : '—';
