@@ -1,6 +1,6 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, ActivatedRoute } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { AdvanceService } from '../../core/api/advance.service';
@@ -214,6 +214,7 @@ export class AdvancesPageComponent implements OnInit {
     private api: AdvanceService,
     private auth: AuthService,
     private alerts: AlertService,
+    private route: ActivatedRoute,
   ) {}
 
   currentPeriod = (() => {
@@ -226,8 +227,21 @@ export class AdvancesPageComponent implements OnInit {
   ngOnInit(): void {
     this.form.patchValue({ period: this.currentPeriod });
     this.form.controls.period.disable({ emitEvent: false });
+
+    // Optional deep-linking from dashboard
+    const qTab = (this.route.snapshot.queryParamMap.get('tab') || 'new') as any;
+
+    // Preload lists for better UX
     this.loadMy(1);
     if (this.canValidate()) this.loadPending(1);
+
+    if (qTab === 'pending' && this.canValidate()) {
+      this.tab.set('pending');
+    } else if (qTab === 'my') {
+      this.tab.set('my');
+    } else {
+      this.tab.set('new');
+    }
   }
 
   canValidate(): boolean {

@@ -1,5 +1,6 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { ExitPermissionService } from '../../core/api/exit-permission.service';
@@ -220,11 +221,24 @@ export class ExitPermissionsPageComponent implements OnInit {
     private api: ExitPermissionService,
     private auth: AuthService,
     private alerts: AlertService,
+    private route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
+    // Optional deep-linking from dashboard
+    const qTab = (this.route.snapshot.queryParamMap.get('tab') || 'new') as any;
+
+    // Preload lists (fast + keeps tabs responsive)
     this.reloadMy();
     if (this.canValidate()) this.reloadPending();
+
+    if (qTab === 'pending' && this.canValidate()) {
+      this.tab.set('pending');
+    } else if (qTab === 'my') {
+      this.tab.set('my');
+    } else {
+      this.tab.set('new');
+    }
   }
 
   canValidate(): boolean {

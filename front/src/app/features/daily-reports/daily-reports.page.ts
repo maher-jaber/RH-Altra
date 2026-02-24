@@ -1,6 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, ActivatedRoute } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
 
@@ -36,7 +36,7 @@ import { DailyReportTeamTab } from './daily-report-tabs/report-team.tab';
     <div style="height:12px"></div>
 
     <mat-card class="panel">
-      <mat-tab-group animationDuration="0ms">
+      <mat-tab-group animationDuration="0ms" [selectedIndex]="selectedIndex()">
         <mat-tab label="Nouveau">
           <app-daily-report-compose-tab
             [refreshKey]="refreshKey()"
@@ -58,11 +58,22 @@ import { DailyReportTeamTab } from './daily-report-tabs/report-team.tab';
     `.muted{opacity:.75;font-size:12px}`,
   ]
 })
-export class DailyReportsPageComponent {
+export class DailyReportsPageComponent implements OnInit {
   // Used to request refresh in child tabs after create/updates
   refreshKey = signal(0);
 
-  constructor(private auth: AuthService) {}
+  // mat-tab-group selected index (0=new, 1=my, 2=team)
+  selectedIndex = signal(0);
+
+  constructor(private auth: AuthService, private route: ActivatedRoute) {}
+
+  ngOnInit(): void {
+    const tab = (this.route.snapshot.queryParamMap.get('tab') || 'new') as any;
+    // new=0, my=1, team=2
+    if (tab === 'my') this.selectedIndex.set(1);
+    else if (tab === 'team' && this.canSeeTeam()) this.selectedIndex.set(2);
+    else this.selectedIndex.set(0);
+  }
 
   canSeeTeam(): boolean {
     return this.auth.hasRole('ROLE_SUPERIOR') || this.auth.hasRole('ROLE_ADMIN');

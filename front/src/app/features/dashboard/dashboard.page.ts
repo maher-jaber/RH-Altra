@@ -125,7 +125,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
           </div>
           <div class="kpi-value">{{s.kpis.pendingExits}}</div>
           <div class="mt-2">
-            <a class="btn btn-sm btn-outline-primary" routerLink="/exit-permissions">Ouvrir</a>
+            <a class="btn btn-sm btn-outline-primary" routerLink="/exit-permissions" [queryParams]="{tab:'pending'}">Valider</a>
           </div>
         </div>
       </div>
@@ -141,7 +141,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
           </div>
           <div class="kpi-value">{{s.kpis.pendingAdvances}}</div>
           <div class="mt-2">
-            <a class="btn btn-sm btn-outline-primary" routerLink="/advances">Ouvrir</a>
+            <a class="btn btn-sm btn-outline-primary" routerLink="/advances" [queryParams]="{tab:'pending'}">Valider</a>
           </div>
         </div>
       </div>
@@ -157,7 +157,7 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
           </div>
           <div class="kpi-value">{{s.kpis.dailyReportsToday}}</div>
           <div class="mt-2">
-            <a class="btn btn-sm btn-outline-primary" routerLink="/daily-reports">Voir</a>
+            <a class="btn btn-sm btn-outline-primary" routerLink="/daily-reports" [queryParams]="{tab: defaultDailyReportsTab()}">Ouvrir</a>
           </div>
         </div>
       </div>
@@ -222,80 +222,8 @@ import { LeaveWorkflowService } from '../../core/api/leave-workflow.service';
       <div class="text-muted">Chargement statistiques…</div>
     </ng-template>
 
-    <!-- Modules -->
-    <div class="row g-3">
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card h-100 shadow-sm border-0" style="border-radius:16px">
-          <div class="card-body">
-            <div class="d-flex align-items-center justify-content-between">
-              <div>
-                <div class="text-muted">Congés</div>
-                <div class="fs-5 fw-bold">Demandes & soldes</div>
-              </div>
-              <i class="bi bi-calendar2-week"></i>
-            </div>
-            <div class="mt-2 text-muted">Créer, suivre, valider (manager 1 / manager 2) et consulter l’historique.</div>
-            <div class="mt-3 d-flex gap-2 flex-wrap">
-              <a class="btn btn-sm btn-outline-primary" routerLink="/leaves/my">Mes demandes</a>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card h-100 shadow-sm border-0" style="border-radius:16px">
-          <div class="card-body">
-            <div class="d-flex align-items-center justify-content-between">
-              <div>
-                <div class="text-muted">Avances</div>
-                <div class="fs-5 fw-bold">Acomptes</div>
-              </div>
-              <i class="bi bi-cash-coin"></i>
-            </div>
-            <div class="mt-2 text-muted">Demande avec montant/motif + validation hiérarchique.</div>
-            <div class="mt-3">
-              <a class="btn btn-sm btn-outline-primary" routerLink="/advances">Voir</a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card h-100 shadow-sm border-0" style="border-radius:16px">
-          <div class="card-body">
-            <div class="d-flex align-items-center justify-content-between">
-              <div>
-                <div class="text-muted">Autorisations</div>
-                <div class="fs-5 fw-bold">Sorties</div>
-              </div>
-              <i class="bi bi-clock-history"></i>
-            </div>
-            <div class="mt-2 text-muted">Heure début/fin + validation rapide et traçable.</div>
-            <div class="mt-3">
-              <a class="btn btn-sm btn-outline-primary" routerLink="/exit-permissions">Voir</a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card h-100 shadow-sm border-0" style="border-radius:16px">
-          <div class="card-body">
-            <div class="d-flex align-items-center justify-content-between">
-              <div>
-                <div class="text-muted">Compte-rendu</div>
-                <div class="fs-5 fw-bold">Journalier</div>
-              </div>
-              <i class="bi bi-journal-text"></i>
-            </div>
-            <div class="mt-2 text-muted">Saisie quotidienne des tâches, heures, blocages + historique.</div>
-            <div class="mt-3">
-              <a class="btn btn-sm btn-outline-primary" routerLink="/daily-reports">Voir</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    
   </div>
   `
 })
@@ -342,6 +270,14 @@ export class DashboardPageComponent implements OnInit {
         }).catch(() => this.loading.set(false));
       }
     });
+  }
+
+
+  defaultDailyReportsTab(): 'new' | 'my' | 'team' {
+    // From dashboard we prefer the most useful tab:
+    // - Manager: Team follow-up
+    // - Others: My history
+    return this.auth.isManager() ? 'team' : 'my';
   }
 
   barHeight(v: number): number {
