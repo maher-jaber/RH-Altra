@@ -40,10 +40,11 @@ services:
       MERCURE_PUBLIC_URL: ${MERCURE_PUBLIC_URL}
       MERCURE_URL: ${MERCURE_URL}
       MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET}
-      MAILER_DSN: ${MAILER_DSN}
+      # Default to Mailhog for local/prod-like runs if MAILER_DSN isn't provided.
+      MAILER_DSN: ${MAILER_DSN:-smtp://mailhog:1025}
       REDIS_URL: redis://redis:6379
       MESSENGER_TRANSPORT_DSN: sync://
-      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
+      PDFSVC_URL: ${PDFSVC_URL:-http://pdfsvc:8001}
     volumes:
       - api_var:/app/var
       - api_uploads:/app/public/uploads
@@ -52,6 +53,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+
+  pdfsvc:
+    build:
+      context: ../../python/pdfsvc
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+
+  # SMTP catcher (useful for local "prod" compose). UI: http://localhost:8025
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "8025:8025"
+    restart: unless-stopped
 
   nginx:
     build:

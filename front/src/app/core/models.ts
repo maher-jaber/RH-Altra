@@ -119,3 +119,22 @@ export interface DailyReport {
   updatedAt: string;
   user: UserMini;
 }
+
+export interface PayslipItem {
+  id: string;
+  month: string; // YYYY-MM
+  originalFilename: string;
+  publishedAt?: string | null;
+}
+
+export interface PayslipImportResult {
+  ok: boolean;
+  id?: string;
+  file: string;
+  candidate?: string | null;
+  status?: 'UNMATCHED' | 'AUTO' | 'PROBABLE' | 'AMBIGUOUS' | 'MANUAL' | 'PUBLISHED';
+  matchScore?: number | null;
+  matchedUser?: { id: string; fullName: string | null } | null;
+  topCandidates?: Array<{ userId: string; fullName: string; score: number }>;
+  error?: string;
+}

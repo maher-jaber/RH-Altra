@@ -293,6 +293,16 @@ import { NotificationItem } from '../../core/models';
             <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 2h6a2 2 0 0 1 2 2h2v18H5V4h2a2 2 0 0 1 2-2zm0 2v2h6V4H9zm-2 6h10v2H7V10zm0 4h10v2H7v-2z"/></svg></span>
             <span class="label">Compte-rendu journalier</span>
           </a>
+
+          <a mat-list-item routerLink="/payslips/my" routerLinkActive="active">
+            <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM7 11h10v2H7v-2zm0 4h10v2H7v-2z"/></svg></span>
+            <span class="label">Fiches de paie</span>
+          </a>
+
+          <a mat-list-item *ngIf="isManager()" routerLink="/payslips/import" routerLinkActive="active">
+            <span class="item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 20h14v-2H5v2zM12 2l-5.5 5.5 1.4 1.4L11 5.8V16h2V5.8l3.1 3.1 1.4-1.4L12 2z"/></svg></span>
+            <span class="label">Import fiches de paie</span>
+          </a>
         </mat-nav-list>
 
         <ng-container *ngIf="auth.hasRole('ROLE_ADMIN')">
@@ -431,6 +441,8 @@ export class ShellComponent implements OnInit, OnDestroy {
   });
 
   isAdmin(): boolean { return (this.auth.me()?.roles || []).includes('ROLE_ADMIN'); }
+
+  isManager(): boolean { return this.auth.isManager(); }
 
   roleLabel = computed(() => {
     const roles = this.auth.me()?.roles || [];

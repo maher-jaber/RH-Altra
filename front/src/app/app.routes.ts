@@ -34,6 +34,9 @@ import { ExitPermissionDetailPage } from './features/exit-permissions/exit-permi
 import { DailyReportsPageComponent } from './features/daily-reports/daily-reports.page';
 import { ProfilePage } from './features/profile/profile.page';
 import { PeopleHubPage } from './features/hr/people-hub.page';
+import { PayslipsMyPage } from './features/payslips/payslips-my.page';
+import { PayslipsImportPage } from './features/payslips/payslips-import.page';
+import { managerGuard } from './core/guards/manager.guard';
 
 export const APP_ROUTES: Routes = [
   { path: 'login', component: LoginPageComponent, title: 'Connexion' },
@@ -68,6 +71,9 @@ export const APP_ROUTES: Routes = [
       { path: 'exit-permissions', component: ExitPermissionsPageComponent, title: 'Autorisations de sortie' },
       { path: 'exit-permissions/detail/:id', component: ExitPermissionDetailPage, title: 'Détail autorisation' },
       { path: 'daily-reports', component: DailyReportsPageComponent, title: 'Compte-rendu journalier' },
+
+      { path: 'payslips/my', component: PayslipsMyPage, title: 'Mes fiches de paie' },
+      { path: 'payslips/import', component: PayslipsImportPage, canActivate: [managerGuard], title: 'Import fiches de paie · Manager' },
 
       { path: 'notifications', component: NotificationsPage, title: 'Notifications' },
       { path: 'settings', component: SettingsPage, canActivate: [adminGuard], title: 'Paramètres' },
